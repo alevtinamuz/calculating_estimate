@@ -12,13 +12,13 @@ def create_database_structure (db_path):
   # удаляем таблицу, если существует (нужно для переобновления данных)
   # пока так, потом оптимизируем
   cursor.execute("DROP TABLE IF EXISTS works")
-  cursor.execute("DROP TABLE IF EXISTS categories")
+  cursor.execute("DROP TABLE IF EXISTS works_categories")
   
   # создаем таблицу для категорий работ, у каждой категории свой уникальный айдишник
   # и они будут использоваться для связи со второй таблицей (непосредственно с всеми работами)
   # название текстом и обязательно непустое и уникальное
   cursor.execute("""
-                CREATE TABLE categories(
+                CREATE TABLE works_categories(
                   id INTEGER PRIMARY KEY,
                   name TEXT NOT NULL UNIQUE
                   )
@@ -37,7 +37,7 @@ def create_database_structure (db_path):
                   name TEXT NOT NULL,
                   price REAL NOT NULL, 
                   unit TEXT NOT NULL,
-                  FOREIGN KEY (category_id) REFERENCES categories(id)
+                  FOREIGN KEY (category_id) REFERENCES works_categories(id)
                 )
                 """)
   
@@ -53,14 +53,14 @@ def import_from_excel (excel_path, db_path):
   
   # проходимся по всем листам из файла excel
   # кроме листа "Главная" и остальных пустых листов (начинаются с "Лист")
-  # далее выполняем множественную вставку данных в таблицу categories базы данных
-  # categories = [("Фасадные работы",), ("Кровельные работы",), ...] - список кортежей (для работы c sqlite)
-  categories = []
+  # далее выполняем множественную вставку данных в таблицу works_categories базы данных
+  # works_categories = [("Фасадные работы",), ("Кровельные работы",), ...] - список кортежей (для работы c sqlite)
+  works_categories = []
   for sheet in excel.sheet_names:
     if sheet not in ["Главная"] and not sheet.startswith("Лист"):
-      categories.append((sheet,))
+      works_categories.append((sheet,))
       
-  connection.executemany("INSERT INTO categories (name) VALUES (?)", categories)
+  connection.executemany("INSERT INTO works_categories (name) VALUES (?)", works_categories)
   connection.commit()
   
   # также проходимся по листам, кроме пустых или ненужных
@@ -78,7 +78,7 @@ def import_from_excel (excel_path, db_path):
         continue
       
       category_id = connection.execute(
-                                      "SELECT id FROM categories WHERE name = ?", (sheet,)
+                                      "SELECT id FROM works_categories WHERE name = ?", (sheet,)
                                       ).fetchone()[0]
       
       works = []

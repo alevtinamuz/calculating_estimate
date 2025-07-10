@@ -1,22 +1,16 @@
-import excel_to_sqlite
-import tests
+import excel_to_sqlite_jobs
+import excel_to_sqlite_materials
 
 
 
-# путь к файлу excel - jobs_cost.xlsx
-jobs_cost_file_excel = "jobs_cost.xlsx"
+jobs_cost_file_excel = "works_cost.xlsx"
+jobs_cost_file_db = "works_cost.db"
 
-# путь к файлу базы данных - jobs_cost.db
-jobs_cost_file_db = "jobs_cost.db"
+materials_cost_file_excel = "materials_cost.xlsx"
+materials_cost_file_db = "materials_cost.db"
 
-excel_to_sqlite.create_database_structure(jobs_cost_file_db)
-excel_to_sqlite.import_from_excel(jobs_cost_file_excel, jobs_cost_file_db)
+excel_to_sqlite_jobs.create_database_structure(jobs_cost_file_db)
+excel_to_sqlite_jobs.import_from_excel(jobs_cost_file_excel, jobs_cost_file_db)
 
-print("\nФасадные работы:")
-print(tests.get_works_by_category(jobs_cost_file_db, "Фасадные работы").head())
-
-print("\nКровельные работы:")
-print(tests.get_works_by_category(jobs_cost_file_db, "Кровельные работы").head())
-
-print("\nЭлектромонтажные работы:")
-print(tests.get_works_by_category(jobs_cost_file_db, "Электромонтажные работы").head())
+excel_to_sqlite_materials.create_database_structue(materials_cost_file_db)
+excel_to_sqlite_materials.import_from_excel(materials_cost_file_excel, materials_cost_file_db)
