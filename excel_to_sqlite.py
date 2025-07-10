@@ -1,6 +1,8 @@
 import sqlite3
 import pandas
 
+
+
 # функция для создания структуры базы данных
 def create_database_structure (db_path):
   # создаем файл и подключаемся
@@ -96,15 +98,9 @@ def import_from_excel (excel_path, db_path):
       
       if works:
         connection.executemany(
-                              "INSERT INTO works (category_id, name, pricem unit) VALUES (?, ?, ?, ?)", works
+                              "INSERT INTO works (category_id, name, price, unit) VALUES (?, ?, ?, ?)", works
                               )
       
   connection.commit()
   connection.close()
-
-
-# путь к файлу excel - jobs_cost.xlsx
-jobs_cost_file_excel = "jobs_cost.xlsx"
-
-# путь к файлу базы данных - jobs_cost.db
-jobs_cost_file_db = "jobs_cost.db"
+  
