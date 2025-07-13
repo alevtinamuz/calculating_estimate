@@ -103,4 +103,6 @@ def import_from_excel (excel_path, db_path):
       
   connection.commit()
   connection.close()
+
+print('hello world')
   
