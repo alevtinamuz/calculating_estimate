@@ -1,13 +1,13 @@
-print()
+import sqlite3
 
 
+def get_price_by_name(db_path, name: str):
+  # создаем файл и подключаемся
+  connection = sqlite3.connect(db_path)
+  cursor = connection.cursor()
 
+  price = connection.execute(
+      "SELECT price FROM works WHERE name = ?", (name,)
+  ).fetchone()[0]
 
-print("дерево на горе стоит")
-b[[b[b[bb[b[]]]]]]
-
-
-
-lflflflfllflffllf
-
-gbhuihgv
+  return price
