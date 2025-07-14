@@ -9,5 +9,13 @@ supabase: Client = create_client(
     os.getenv("SUPABASE_URL"),
     os.getenv("SUPABASE_KEY")
 )
-response = supabase.table('works').select('*').execute()
+
+cat_name = 'Утеплители'
+getters.get_materials_by_category(supabase, cat_name)
+
+# response = supabase.table('works').select('price').eq('name', 'Покраска фасада в два слоя').execute()
+# print(response.data[0])
+#
+str = 'Покраска'
+response = supabase.table('works').select('*').ilike('name', f'%{str}%').execute()
 print(response.data)
