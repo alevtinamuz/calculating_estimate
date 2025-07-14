@@ -1,7 +1,19 @@
-import excel_to_sqlite_jobs
-import excel_to_sqlite_materials
+# import excel_to_sqlite_jobs
+# import excel_to_sqlite_materials
 import getters
+import os
+from supabase import create_client, Client
+from dotenv import load_dotenv
 
+
+
+load_dotenv()
+supabase: Client = create_client(
+    os.getenv("SUPABASE_URL"),
+    os.getenv("SUPABASE_KEY")
+)
+response = supabase.table('works').select('*').execute()
+print(response.data)
 
 
 jobs_cost_file_excel = "works_cost.xlsx"
