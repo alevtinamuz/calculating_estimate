@@ -9,5 +9,6 @@ supabase: Client = create_client(
     os.getenv("SUPABASE_URL"),
     os.getenv("SUPABASE_KEY")
 )
+
 response = supabase.table('works').select('*').execute()
 print(response.data)
