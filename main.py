@@ -86,3 +86,8 @@ sys.exit(app.exec())
 # setters.add_work(supabase, 2, "каракуля", 88.88, "шт")
 
 # setters.delete_work(supabase, 219)
+# setters.add_material_category(supabase, "gg")
+# setters.add_material(supabase, 16, "hh", 11, "mm")
+# setters.add_material(supabase, 16, "gg", 11, "mm")
+# setters.add_material(supabase, 16, "qwqw", 11, "mm")
+# setters.delete_material_category(supabase, 16)

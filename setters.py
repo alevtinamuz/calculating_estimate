@@ -118,6 +118,11 @@ def add_work(supabase, category_id, name, price, unit):
   
 def delete_material_category(supabase, id):
   response = (
+    supabase.table("materials")
+    .delete()
+    .eq("category_id", id)
+    .execute(),
+    
     supabase.table("materials_categories")
     .delete()
     .eq("id", id)
@@ -126,6 +131,11 @@ def delete_material_category(supabase, id):
   
 def delete_work_category(supabase, id):
   response = (
+    supabase.table("works")
+    .delete()
+    .eq("category_id", id)
+    .execute(),
+    
     supabase.table("works_categories")
     .delete()
     .eq("id", id)
