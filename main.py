@@ -35,7 +35,6 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda _, idx=page_index: self.switch_page(idx))
 
     def switch_page(self, page_index):
-        """Переключает страницу в StackedWidget"""
         self.stacked_widget.setCurrentIndex(page_index)
 
 
