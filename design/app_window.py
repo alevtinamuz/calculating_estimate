@@ -1,15 +1,26 @@
+import os
+
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                            QLabel, QPushButton, QSpacerItem, QSizePolicy)
+                             QLabel, QPushButton, QSpacerItem, QSizePolicy, QTableWidgetItem, QTableWidget)
 from PyQt6.QtCore import Qt
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
 from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, CLOSE_BUTTON_STYLE
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        
+
         self.setWindowTitle("Hello World App")
         self.setStyleSheet(MAIN_WINDOW_STYLE)
+
+        # Инициализация Supabase клиента
+        load_dotenv()
+        self.supabase_url = os.getenv("SUPABASE_URL")
+        self.supabase_key = os.getenv("SUPABASE_KEY")
+        self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
         
         # Центральный виджет
         central_widget = QWidget()
@@ -19,6 +30,29 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(20)
+
+        # Таблица для отображения данных из Supabase
+        self.table = QTableWidget()
+        self.table.setStyleSheet("""
+                            QTableWidget {
+                                background-color: black;
+                                border: 1px solid #dee2e6;
+                                border-radius: 5px;
+                            }
+                            QHeaderView::section {
+                                background-color: #e9ecef;
+                                padding: 5px;
+                                border: 1px solid #dee2e6;
+                            }
+                        """)
+
+        main_layout.addWidget(self.table)
+
+        # Кнопка для загрузки данных
+        self.load_button = QPushButton("Загрузить данные")
+        self.load_button.setStyleSheet(BUTTON_STYLE)
+        self.load_button.clicked.connect(self.load_data_from_supabase)
+        main_layout.addWidget(self.load_button)
         
         # Метка с текстом
         self.label = QLabel("Hello, world?")
@@ -47,3 +81,35 @@ class MainWindow(QMainWindow):
         
         # Показываем окно в полноэкранном режиме
         self.showFullScreen()
+
+
+    def load_data_from_supabase(self):
+        """Загружает данные из таблицы 'works' Supabase и отображает их в таблице"""
+        try:
+            # Получаем данные из Supabase
+            response = self.supabase.table('works').select('*').execute()
+            data = response.data
+
+            # if not data:
+            #     self.label.setText("Нет данных для отображения")
+            #     return
+
+            # Настраиваем таблицу
+            self.table.setRowCount(len(data))
+            self.table.setColumnCount(len(data[0].keys()))
+            self.table.setHorizontalHeaderLabels(data[0].keys())
+
+            # Заполняем таблицу данными
+            for row_idx, row_data in enumerate(data):
+                for col_idx, (key, value) in enumerate(row_data.items()):
+                    item = QTableWidgetItem(str(value))
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    self.table.setItem(row_idx, col_idx, item)
+
+            # Ресайз колонок по содержимому
+            self.table.resizeColumnsToContents()
+            # self.label.setText("Данные успешно загружены")
+
+        except Exception as e:
+            print('111')
+            # self.label.setText(f"Ошибка: {str(e)}")
