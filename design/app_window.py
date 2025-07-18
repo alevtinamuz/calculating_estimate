@@ -3,14 +3,15 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QPushButton, QSpacerItem, QSizePolicy,
                              QTableWidgetItem, QTableWidget, QHeaderView,
                              QMessageBox, QToolButton, QStackedWidget,
-                             QTabWidget)
+                             QTabWidget, QComboBox)
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QCursor
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import setters
 
-from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, TABLE_STYLE, TOOL_BUTTON_STYLE, TAB_STYLE
+from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, TABLE_STYLE, TOOL_BUTTON_STYLE, TAB_STYLE, \
+    TABLE_SELECTION_LAYOUT_STYLE, COMBO_BOX_STYLE
 
 
 class MainWindow(QMainWindow):
@@ -25,6 +26,7 @@ class MainWindow(QMainWindow):
         # Словарь для хранения кнопок действий
         self.action_buttons = {}
         self.current_hovered_row = -1
+        self.current_table = 'works'
 
         # Центральный виджет
         central_widget = QWidget()
@@ -60,6 +62,9 @@ class MainWindow(QMainWindow):
         self.page_db = QWidget()
         layout = QVBoxLayout()
 
+        table_selection_layout_widget = self.create_table_selector()
+        layout.addWidget(table_selection_layout_widget)
+
         self.label = QLabel("База данных")
         self.label.setStyleSheet(LABEL_STYLE)
         layout.addWidget(self.label)
@@ -74,6 +79,11 @@ class MainWindow(QMainWindow):
         self.load_data_from_supabase()
 
         self.page_db.setLayout(layout)
+
+    def on_table_changed(self, table_name):
+        """Обработчик изменения выбранной таблицы"""
+        self.current_table = table_name
+        self.load_data_from_supabase()
 
     def create_page_estimate(self):
         """Создает вторую страницу (смета)"""
@@ -91,8 +101,11 @@ class MainWindow(QMainWindow):
     def load_data_from_supabase(self):
         """Загружает данные из Supabase и отображает их в таблице"""
         try:
-            response = self.supabase.table('works').select('*').execute()
-            data = response.data
+            data = []
+            batch_size = 1000
+            for i in range(0, 2500, batch_size):
+                batch = self.supabase.table(self.current_table).select('*').range(i, i + batch_size - 1).execute()
+                data.extend(batch.data)
 
             if not data:
                 self.label.setText("Нет данных для отображения")
@@ -118,12 +131,16 @@ class MainWindow(QMainWindow):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table_db.setItem(row_idx, col_idx, item)
 
-                # Создаем кнопки действий
-                edit_btn = self.create_edit_btn(row_idx)
-                delete_btn = self.create_delete_btn(row_idx)
-
-                # Сохраняем ссылки на кнопки
-                self.action_buttons[row_idx] = (edit_btn, delete_btn)
+                if self.current_table == 'works':
+                    edit_btn = self.create_edit_btn(row_idx)
+                    delete_btn = self.create_delete_btn(row_idx)
+                    self.action_buttons[row_idx] = (edit_btn, delete_btn)
+                # # Создаем кнопки действий
+                # edit_btn = self.create_edit_btn(row_idx)
+                # delete_btn = self.create_delete_btn(row_idx)
+                #
+                # # Сохраняем ссылки на кнопки
+                # self.action_buttons[row_idx] = (edit_btn, delete_btn)
 
             # Настраиваем заголовки таблицы
             header = self.table_db.horizontalHeader()
@@ -178,11 +195,15 @@ class MainWindow(QMainWindow):
 
     def edit_row(self, row):
         """Обработка редактирования строки"""
+        if self.current_table != 'works':
+            return
         record_id = self.table_db.item(row, 0).text()
         print(f"Редактирование записи с ID: {record_id}")
 
     def delete_row(self, row):
         """Обработка удаления строки"""
+        if self.current_table != 'works':
+            return
         record_id = self.table_db.item(row, 0).text()
 
         reply = QMessageBox.question(
@@ -286,3 +307,27 @@ class MainWindow(QMainWindow):
             os.getenv("SUPABASE_URL"),
             os.getenv("SUPABASE_KEY")
         )
+
+    def create_table_selector(self):
+        # Создаем горизонтальный layout для выбора таблицы
+        table_selection_layout = QHBoxLayout()
+        table_selection_layout_widget = QWidget()
+        table_selection_layout_widget.setLayout(table_selection_layout)
+        table_selection_layout_widget.setStyleSheet(TABLE_SELECTION_LAYOUT_STYLE)
+
+        self.label = QLabel("Выберите таблицу:")
+        self.label.setStyleSheet(LABEL_STYLE)
+        table_selection_layout.addWidget(self.label)
+
+        # Создаем выпадающий список для выбора таблицы
+        self.table_selector = QComboBox()
+        self.table_selector.setStyleSheet(COMBO_BOX_STYLE)  # Применяем стиль
+        self.table_selector.addItems(["works", "works_categories", "materials", "materials_categories"])
+        self.table_selector.setCurrentText(self.current_table)
+        self.table_selector.currentTextChanged.connect(self.on_table_changed)
+        table_selection_layout.addWidget(self.table_selector)
+
+        # Добавляем растягивающийся элемент
+        table_selection_layout.addStretch()
+
+        return table_selection_layout_widget

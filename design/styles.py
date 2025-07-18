@@ -97,3 +97,50 @@ TOOL_BUTTON_STYLE = """
         background-color: rgba(244, 67, 54, 150);
     }
 """
+
+COMBO_BOX_STYLE = """
+    QComboBox {
+        background-color: white;
+        color: black;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 5px;
+        min-width: 150px;
+    }
+
+    QComboBox:hover {
+        border: 1px solid #aaa;
+    }
+
+    QComboBox::drop-down {
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 20px;
+        border-left-width: 1px;
+        border-left-color: #ccc;
+        border-left-style: solid;
+    }
+
+    QComboBox::down-arrow {
+        image: url(icons/down_arrow.png);
+        width: 12px;
+        height: 12px;
+    }
+
+    QComboBox QAbstractItemView {
+        background-color: white;
+        color: black;
+        selection-background-color: #e0e0e0;
+        selection-color: black;
+        border: 1px solid #ccc;
+    }
+"""
+
+TABLE_SELECTION_LAYOUT_STYLE = """
+    QHBoxLayout {
+        background-color: white;
+        padding: 10px;
+        border-radius: 4px;
+        border: 1px solid #eee;
+    }
+"""
