@@ -1,7 +1,7 @@
 import os
 
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QLabel, QPushButton, QSpacerItem, QSizePolicy, QTableWidgetItem, QTableWidget)
+                            QLabel, QPushButton, QSpacerItem, QSizePolicy, QTableWidgetItem, QTableWidget)
 from PyQt6.QtCore import Qt
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -80,7 +80,7 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(bottom_layout)
         
         # Показываем окно в полноэкранном режиме
-        self.showFullScreen()
+        self.showMaximized()
 
 
     def load_data_from_supabase(self):
