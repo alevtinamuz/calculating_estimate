@@ -2,7 +2,9 @@ from PyQt6.QtGui import QColor
 
 # Стили для главного окна
 MAIN_WINDOW_STYLE = """
-    background-color: white;
+    QWidget {
+        background-color: white;
+    }
 """
 
 # Стили для метки
@@ -56,5 +58,38 @@ TABLE_STYLE = """
         padding: 5px;
         border: 1px solid #dee2e6;
         color: black;
+    }
+"""
+
+
+TAB_STYLE = """
+    QTabWidget::pane {
+        border: none;
+        background: white;
+    }
+
+    QTabBar::tab {
+        background: white;
+        color: black;
+        padding: 8px 16px;
+        border: 1px solid #ddd;
+        border-bottom: none;
+        border-top-left-radius: 4px;
+        border-top-right-radius: 4px;
+    }
+
+    QTabBar::tab:selected {
+        background: white;
+        color: black;
+        border-color: #aaa;
+        font-weight: bold;
+    }
+
+    QTabBar::tab:!selected {
+        background: #f0f0f0;
+    }
+
+    QTabBar::tab:hover {
+        background: #e9e9e9;
     }
 """
