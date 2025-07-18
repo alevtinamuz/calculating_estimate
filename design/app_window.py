@@ -1,9 +1,9 @@
 import os
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                            QLabel, QPushButton, QSpacerItem, QSizePolicy, 
-                            QTableWidgetItem, QTableWidget, QHeaderView, 
-                            QMessageBox, QToolButton, QStackedWidget,
-                            QTabWidget)
+                             QLabel, QPushButton, QSpacerItem, QSizePolicy,
+                             QTableWidgetItem, QTableWidget, QHeaderView,
+                             QMessageBox, QToolButton, QStackedWidget,
+                             QTabWidget)
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QCursor
 from supabase import create_client, Client
@@ -18,20 +18,13 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Calculating estimate")
         self.setStyleSheet(MAIN_WINDOW_STYLE)
-        
-        # Инициализация Supabase
-        load_dotenv()
-        self.supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY")
-        )
-        # setters.add_work(self.supabase, 2, "каракуля", 88.88, "шт")
 
-        # setters.add_work(self.supabase, 2, "каракуля", 88.88, "шт")
+        # Инициализация Supabase
+        self.supabase_init()
+
         # Словарь для хранения кнопок действий
         self.action_buttons = {}
         self.current_hovered_row = -1
-        
 
         # Центральный виджет
         central_widget = QWidget()
@@ -43,7 +36,6 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(20)
 
-        # Таблица для отображения данных
         # Создаем виджет с вкладками
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs)
@@ -52,7 +44,6 @@ class MainWindow(QMainWindow):
         self.create_page_db()
         self.create_page_estimate()
         self.update_buttons_position()
-        
 
         # Добавляем страницы во вкладки
         self.tabs.addTab(self.page_db, "База данных")
@@ -65,6 +56,7 @@ class MainWindow(QMainWindow):
 
     def create_page_db(self):
         """Создает первую страницу (база данных)"""
+
         self.page_db = QWidget()
         layout = QVBoxLayout()
 
@@ -73,19 +65,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.label)
 
         # Таблица для данных
-        self.table = QTableWidget()
-        self.table.setStyleSheet(TABLE_STYLE)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.setMouseTracking(True)  # Включаем отслеживание мыши
-        self.table.viewport().installEventFilter(self)  # Устанавливаем фильтр событий
-        
-        layout.addWidget(self.table)
+        self.table_db = self.create_table_db()
+        layout.addWidget(self.table_db)
 
-        # Кнопка загрузки данных
-        self.load_button = QPushButton("Загрузить данные")
-        self.load_button.setStyleSheet(BUTTON_STYLE)
-        self.load_button.clicked.connect(self.load_data_from_supabase)
-        layout.addWidget(self.load_button)
+        self.refresh_button = self.create_refresh_button()
+        layout.addWidget(self.refresh_button)
+
+        self.load_data_from_supabase()
 
         self.page_db.setLayout(layout)
 
@@ -101,7 +87,7 @@ class MainWindow(QMainWindow):
         # Здесь можно добавить виджеты для работы со сметой
 
         self.page_estimate.setLayout(layout)
-        
+
     def load_data_from_supabase(self):
         """Загружает данные из Supabase и отображает их в таблице"""
         try:
@@ -113,75 +99,59 @@ class MainWindow(QMainWindow):
                 return
 
             # Очищаем предыдущие данные и кнопки
-            self.table.clear()
+            self.table_db.clear()
             self.hide_all_tool_buttons()
             self.action_buttons.clear()
-            
+
             # Устанавливаем размеры таблицы
-            self.table.setRowCount(len(data))
-            self.table.setColumnCount(len(data[0].keys()))
-            
+            self.table_db.setRowCount(len(data))
+            self.table_db.setColumnCount(len(data[0].keys()))
+
             # Устанавливаем заголовки
             headers = list(data[0].keys())
-            self.table.setHorizontalHeaderLabels(headers)
-            
+            self.table_db.setHorizontalHeaderLabels(headers)
+
             # Заполняем таблицу данными
             for row_idx, row_data in enumerate(data):
                 for col_idx, (key, value) in enumerate(row_data.items()):
                     item = QTableWidgetItem(str(value))
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                    self.table.setItem(row_idx, col_idx, item)
-                
+                    self.table_db.setItem(row_idx, col_idx, item)
+
                 # Создаем кнопки действий
-                edit_btn = QToolButton()
-                edit_btn.setObjectName("editToolButton")
-                edit_btn.setStyleSheet(TOOL_BUTTON_STYLE)
-                edit_btn.setText("✏️")
-                edit_btn.setToolTip("Редактировать")
-                edit_btn.clicked.connect(lambda _, r=row_idx: self.edit_row(r))
-                
-                delete_btn = QToolButton()
-                delete_btn.setObjectName("deleteToolButton")
-                delete_btn.setStyleSheet(TOOL_BUTTON_STYLE)
-                delete_btn.setText("🗑️")
-                delete_btn.setToolTip("Удалить")
-                delete_btn.clicked.connect(lambda _, r=row_idx: self.delete_row(r))
-                
-                # Размещаем кнопки поверх таблицы
-                edit_btn.setParent(self.table.viewport())
-                delete_btn.setParent(self.table.viewport())
-                edit_btn.hide()
-                delete_btn.hide()
-                
+                edit_btn = self.create_edit_btn(row_idx)
+                delete_btn = self.create_delete_btn(row_idx)
+
                 # Сохраняем ссылки на кнопки
                 self.action_buttons[row_idx] = (edit_btn, delete_btn)
-            
+
             # Настраиваем заголовки таблицы
-            header = self.table.horizontalHeader()
+            header = self.table_db.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-            
-            self.table.verticalHeader().setVisible(False)
-            self.table.setShowGrid(False)
-            self.table.setFrameShape(QTableWidget.Shape.NoFrame)
-            
+
+            self.table_db.verticalHeader().setVisible(False)
+            self.table_db.setShowGrid(False)
+            self.table_db.setFrameShape(QTableWidget.Shape.NoFrame)
+
             self.label.setText(f"Загружено {len(data)} записей")
-            
 
             # Ресайз колонок по содержимому
-            self.table.resizeColumnsToContents()
+            self.table_db.resizeColumnsToContents()
             self.label.setText("Данные успешно загружены")
 
-            self.table.setStyleSheet(TABLE_STYLE)
+            self.table_db.setStyleSheet(TABLE_STYLE)
+
+            print("Данные обновлены")
 
         except Exception as e:
             self.label.setText(f"Ошибка загрузки: {str(e)}")
             print('Error:', e)
-            
+
     def eventFilter(self, source, event):
         """Обработка событий мыши для показа/скрытия кнопок"""
-        if source is self.table.viewport():
+        if source is self.table_db.viewport():
             if event.type() == QEvent.Type.MouseMove:
-                index = self.table.indexAt(event.pos())
+                index = self.table_db.indexAt(event.pos())
                 if index.isValid():
                     self.show_tool_buttons(index.row(), event.pos())
                 else:
@@ -189,39 +159,15 @@ class MainWindow(QMainWindow):
             elif event.type() == QEvent.Type.Leave:
                 self.hide_all_tool_buttons()
         return super().eventFilter(source, event)
-      
+
     def show_tool_buttons(self, row, pos):
-      """Показывает кнопки для строки под курсором в крайней правой позиции"""
-      if row != self.current_hovered_row:
-          self.hide_all_tool_buttons()
-          self.current_hovered_row = row
-          
-          if row in self.action_buttons:
-              edit_btn, delete_btn = self.action_buttons[row]
-              
-              # Получаем прямоугольник всей строки
-              rect = self.table.visualRect(self.table.model().index(row, 0))
-              
-              # Получаем ширину видимой области таблицы
-              table_width = self.table.viewport().width()
-              
-              # Размеры кнопок
-              btn_width = edit_btn.sizeHint().width()
-              spacing = 5
-              
-              # Позиционируем кнопки в крайней правой части видимой области
-              delete_btn.move(
-                  table_width - btn_width - spacing,
-                  rect.top() + (rect.height() - delete_btn.sizeHint().height()) // 2
-              )
-              
-              edit_btn.move(
-                  table_width - 2 * btn_width - 2 * spacing,
-                  rect.top() + (rect.height() - edit_btn.sizeHint().height()) // 2
-              )
-              
-              edit_btn.show()
-              delete_btn.show()
+        """Показывает кнопки для строки под курсором в крайней правой позиции"""
+        if row != self.current_hovered_row:
+            self.hide_all_tool_buttons()
+            self.current_hovered_row = row
+
+            if row in self.action_buttons:
+                self.set_pos_action_buttons(row)
 
     def hide_all_tool_buttons(self):
         """Скрывает все кнопки действий"""
@@ -229,23 +175,22 @@ class MainWindow(QMainWindow):
         for buttons in self.action_buttons.values():
             for btn in buttons:
                 btn.hide()
-    
+
     def edit_row(self, row):
         """Обработка редактирования строки"""
-        record_id = self.table.item(row, 0).text()
+        record_id = self.table_db.item(row, 0).text()
         print(f"Редактирование записи с ID: {record_id}")
-        
-    
+
     def delete_row(self, row):
         """Обработка удаления строки"""
-        record_id = self.table.item(row, 0).text()
-        
+        record_id = self.table_db.item(row, 0).text()
+
         reply = QMessageBox.question(
             self, 'Подтверждение удаления',
             f'Вы уверены, что хотите удалить запись с ID {record_id}?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
-        
+
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 setters.delete_work(self.supabase, record_id)
@@ -254,10 +199,90 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 self.label.setText(f"Ошибка удаления: {str(e)}")
                 print('Error:', e)
-                
+
     def update_buttons_position(self):
-      """Обновляет позиции кнопок при прокрутке или изменении размера"""
-      if self.current_hovered_row >= 0:
-          pos = self.table.viewport().mapFromGlobal(QCursor.pos())
-          self.show_tool_buttons(self.current_hovered_row, pos)
-          # self.label.setText(f"Ошибка: {str(e)}")
+        """Обновляет позиции кнопок при прокрутке или изменении размера"""
+        if self.current_hovered_row >= 0:
+            pos = self.table_db.viewport().mapFromGlobal(QCursor.pos())
+            self.show_tool_buttons(self.current_hovered_row, pos)
+
+    def create_edit_btn(self, row_idx=None):
+        edit_btn = QToolButton()
+        edit_btn.setObjectName("editToolButton")
+        edit_btn.setStyleSheet(TOOL_BUTTON_STYLE)
+        edit_btn.setText("✏️")
+        edit_btn.setToolTip("Редактировать")
+        edit_btn.clicked.connect(lambda _, r=row_idx: self.edit_row(r))
+
+        # Размещаем кнопки поверх таблицы
+        edit_btn.setParent(self.table_db.viewport())
+        edit_btn.hide()
+
+        return edit_btn
+
+    def create_delete_btn(self, row_idx=None):
+        delete_btn = QToolButton()
+        delete_btn.setObjectName("deleteToolButton")
+        delete_btn.setStyleSheet(TOOL_BUTTON_STYLE)
+        delete_btn.setText("🗑️")
+        delete_btn.setToolTip("Удалить")
+        delete_btn.clicked.connect(lambda _, r=row_idx: self.delete_row(r))
+
+        # Размещаем кнопки поверх таблицы
+        delete_btn.setParent(self.table_db.viewport())
+        delete_btn.hide()
+
+        return delete_btn
+
+    def create_refresh_button(self):
+        # Кнопка загрузки данных
+        refresh_button = QPushButton("Обновить данные")
+        refresh_button.setStyleSheet(BUTTON_STYLE)
+        refresh_button.clicked.connect(self.load_data_from_supabase)
+
+        return refresh_button
+
+    def create_table_db(self):
+        table_db = QTableWidget()
+        table_db.setStyleSheet(TABLE_STYLE)
+        table_db.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table_db.setMouseTracking(True)  # Включаем отслеживание мыши
+        table_db.viewport().installEventFilter(self)  # Устанавливаем фильтр событий
+
+        print("таблица создана")
+
+        return table_db
+
+    def set_pos_action_buttons(self, row):
+        edit_btn, delete_btn = self.action_buttons[row]
+
+        # Получаем прямоугольник всей строки
+        rect = self.table_db.visualRect(self.table_db.model().index(row, 0))
+
+        # Получаем ширину видимой области таблицы
+        table_width = self.table_db.viewport().width()
+
+        # Размеры кнопок
+        btn_width = edit_btn.sizeHint().width()
+        spacing = 5
+
+        # Позиционируем кнопки в крайней правой части видимой области
+        delete_btn.move(
+            table_width - btn_width - spacing,
+            rect.top() + (rect.height() - delete_btn.sizeHint().height()) // 2
+        )
+
+        edit_btn.move(
+            table_width - 2 * btn_width - 2 * spacing,
+            rect.top() + (rect.height() - edit_btn.sizeHint().height()) // 2
+        )
+
+        edit_btn.show()
+        delete_btn.show()
+
+    def supabase_init(self):
+        load_dotenv()
+        self.supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_KEY")
+        )
