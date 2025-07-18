@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         # Таблица для отображения данных из Supabase
         self.table = QTableWidget()
         self.table.setStyleSheet(TABLE_STYLE)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers) 
 
         main_layout.addWidget(self.table)
 
