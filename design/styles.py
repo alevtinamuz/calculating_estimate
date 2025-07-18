@@ -49,10 +49,12 @@ TABLE_STYLE = """
         background-color: white;
         border: 1px solid #dee2e6;
         border-radius: 5px;
+        color: black;
     }
     QHeaderView::section {
         background-color: #e9ecef;
         padding: 5px;
         border: 1px solid #dee2e6;
+        color: black;
     }
 """
