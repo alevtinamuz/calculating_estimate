@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                             QTabWidget)
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QCursor
-from PyQt6.QtCore import Qt
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import setters
@@ -112,9 +111,6 @@ class MainWindow(QMainWindow):
             if not data:
                 self.label.setText("Нет данных для отображения")
                 return
-            if not data:
-                self.label.setText("Нет данных для отображения")
-                return
 
             # Очищаем предыдущие данные и кнопки
             self.table.clear()
@@ -174,6 +170,8 @@ class MainWindow(QMainWindow):
             # Ресайз колонок по содержимому
             self.table.resizeColumnsToContents()
             self.label.setText("Данные успешно загружены")
+
+            self.table.setStyleSheet(TABLE_STYLE)
 
         except Exception as e:
             self.label.setText(f"Ошибка загрузки: {str(e)}")
@@ -262,4 +260,4 @@ class MainWindow(QMainWindow):
       if self.current_hovered_row >= 0:
           pos = self.table.viewport().mapFromGlobal(QCursor.pos())
           self.show_tool_buttons(self.current_hovered_row, pos)
-          self.label.setText(f"Ошибка: {str(e)}")
+          # self.label.setText(f"Ошибка: {str(e)}")
