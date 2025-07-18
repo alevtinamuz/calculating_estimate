@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, CLOSE_BUTTON_STYLE
+from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, CLOSE_BUTTON_STYLE, TABLE_STYLE
 
 
 class MainWindow(QMainWindow):
@@ -16,11 +16,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Hello World App")
         self.setStyleSheet(MAIN_WINDOW_STYLE)
 
-        # Инициализация Supabase клиента
         load_dotenv()
-        self.supabase_url = os.getenv("SUPABASE_URL")
-        self.supabase_key = os.getenv("SUPABASE_KEY")
-        self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+        self.supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_KEY")
+        )
         
         # Центральный виджет
         central_widget = QWidget()
@@ -33,18 +33,7 @@ class MainWindow(QMainWindow):
 
         # Таблица для отображения данных из Supabase
         self.table = QTableWidget()
-        self.table.setStyleSheet("""
-                            QTableWidget {
-                                background-color: black;
-                                border: 1px solid #dee2e6;
-                                border-radius: 5px;
-                            }
-                            QHeaderView::section {
-                                background-color: #e9ecef;
-                                padding: 5px;
-                                border: 1px solid #dee2e6;
-                            }
-                        """)
+        self.table.setStyleSheet(TABLE_STYLE)
 
         main_layout.addWidget(self.table)
 

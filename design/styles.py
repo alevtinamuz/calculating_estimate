@@ -42,3 +42,17 @@ CLOSE_BUTTON_STYLE = """
         background-color: #ff5252;
     }
 """
+
+
+TABLE_STYLE = """
+    QTableWidget {
+        background-color: white;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+    }
+    QHeaderView::section {
+        background-color: #e9ecef;
+        padding: 5px;
+        border: 1px solid #dee2e6;
+    }
+"""

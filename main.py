@@ -11,11 +11,11 @@ from PyQt6 import uic
 from design.app_window import MainWindow
 
 
-load_dotenv()
-supabase: Client = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_KEY")
-)
+# load_dotenv()
+# supabase: Client = create_client(
+#     os.getenv("SUPABASE_URL"),
+#     os.getenv("SUPABASE_KEY")
+# )
 
 app = QApplication(sys.argv)
     
