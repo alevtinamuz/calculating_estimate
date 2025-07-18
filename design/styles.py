@@ -27,22 +27,6 @@ BUTTON_STYLE = """
     }
 """
 
-# Стили для кнопки закрытия
-CLOSE_BUTTON_STYLE = """
-    QPushButton {
-        background-color: #ff6b6b;
-        color: white;
-        border: none;
-        padding: 8px 16px;
-        font-weight: bold;
-        border-radius: 4px;
-    }
-    
-    QPushButton:hover {
-        background-color: #ff5252;
-    }
-"""
-
 
 TABLE_STYLE = """
     QTableWidget {
@@ -56,5 +40,25 @@ TABLE_STYLE = """
         padding: 5px;
         border: 1px solid #dee2e6;
         color: black;
+    }
+"""
+
+
+TOOL_BUTTON_STYLE = """
+    QToolButton {
+        background-color: rgba(255, 255, 255, 150);
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 2px;
+        margin: 1px;
+    }
+    QToolButton:hover {
+        background-color: rgba(255, 255, 255, 200);
+    }
+    #editToolButton {
+        background-color: rgba(76, 175, 80, 150);
+    }
+    #deleteToolButton {
+        background-color: rgba(244, 67, 54, 150);
     }
 """
