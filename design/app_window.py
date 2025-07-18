@@ -2,19 +2,16 @@ import os
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                             QLabel, QPushButton, QSpacerItem, QSizePolicy, 
                             QTableWidgetItem, QTableWidget, QHeaderView, 
-                            QMessageBox, QToolButton)
+                            QMessageBox, QToolButton, QStackedWidget,
+                            QTabWidget)
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QCursor
-                             QLabel, QPushButton, QSpacerItem, QSizePolicy,
-                             QTableWidgetItem, QTableWidget, QStackedWidget,
-                             QTabWidget)
 from PyQt6.QtCore import Qt
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import setters
 
-from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, TABLE_STYLE, TOOL_BUTTON_STYLE
-from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, CLOSE_BUTTON_STYLE, TABLE_STYLE, TAB_STYLE
+from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, TABLE_STYLE, TOOL_BUTTON_STYLE, TAB_STYLE
 
 
 class MainWindow(QMainWindow):
@@ -55,6 +52,8 @@ class MainWindow(QMainWindow):
         # Создаем страницы
         self.create_page_db()
         self.create_page_estimate()
+        self.update_buttons_position()
+        
 
         # Добавляем страницы во вкладки
         self.tabs.addTab(self.page_db, "База данных")
@@ -77,41 +76,16 @@ class MainWindow(QMainWindow):
         # Таблица для данных
         self.table = QTableWidget()
         self.table.setStyleSheet(TABLE_STYLE)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setMouseTracking(True)  # Для отслеживания движения мыши
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setMouseTracking(True)  # Включаем отслеживание мыши
         self.table.viewport().installEventFilter(self)  # Устанавливаем фильтр событий
         
-        main_layout.addWidget(self.table)
-
-        # Кнопка для загрузки данных
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         layout.addWidget(self.table)
 
         # Кнопка загрузки данных
         self.load_button = QPushButton("Загрузить данные")
         self.load_button.setStyleSheet(BUTTON_STYLE)
         self.load_button.clicked.connect(self.load_data_from_supabase)
-        main_layout.addWidget(self.load_button)
-        
-        # Метка с текстом
-        self.label = QLabel("Hello, world?")
-        self.label.setStyleSheet(LABEL_STYLE)
-        main_layout.addWidget(self.label)
-        
-        self.showMaximized()
-
-    def eventFilter(self, source, event):
-        """Обработка событий мыши для показа/скрытия кнопок"""
-        if source is self.table.viewport():
-            if event.type() == QEvent.Type.MouseMove:
-                index = self.table.indexAt(event.pos())
-                if index.isValid():
-                    self.show_tool_buttons(index.row(), event.pos())
-                else:
-                    self.hide_all_tool_buttons()
-            elif event.type() == QEvent.Type.Leave:
-                self.hide_all_tool_buttons()
-        return super().eventFilter(source, event)
         layout.addWidget(self.load_button)
 
         self.page_db.setLayout(layout)
@@ -128,7 +102,7 @@ class MainWindow(QMainWindow):
         # Здесь можно добавить виджеты для работы со сметой
 
         self.page_estimate.setLayout(layout)
-
+        
     def load_data_from_supabase(self):
         """Загружает данные из Supabase и отображает их в таблице"""
         try:
@@ -204,7 +178,20 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.label.setText(f"Ошибка загрузки: {str(e)}")
             print('Error:', e)
-    
+            
+    def eventFilter(self, source, event):
+        """Обработка событий мыши для показа/скрытия кнопок"""
+        if source is self.table.viewport():
+            if event.type() == QEvent.Type.MouseMove:
+                index = self.table.indexAt(event.pos())
+                if index.isValid():
+                    self.show_tool_buttons(index.row(), event.pos())
+                else:
+                    self.hide_all_tool_buttons()
+            elif event.type() == QEvent.Type.Leave:
+                self.hide_all_tool_buttons()
+        return super().eventFilter(source, event)
+      
     def show_tool_buttons(self, row, pos):
       """Показывает кнопки для строки под курсором в крайней правой позиции"""
       if row != self.current_hovered_row:
@@ -275,4 +262,4 @@ class MainWindow(QMainWindow):
       if self.current_hovered_row >= 0:
           pos = self.table.viewport().mapFromGlobal(QCursor.pos())
           self.show_tool_buttons(self.current_hovered_row, pos)
-            self.label.setText(f"Ошибка: {str(e)}")
+          self.label.setText(f"Ошибка: {str(e)}")

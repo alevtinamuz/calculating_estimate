@@ -54,9 +54,9 @@ sys.exit(app.exec())
 # response = supabase.table('works').select('*').execute()
 # print(response.data)
 
-setters.add_work(supabase, 2, "каракуля", 88.88, "шт")
+# setters.add_work(supabase, 2, "каракуля", 88.88, "шт")
 
-setters.add_work(supabase, 2, "каракуля", 88.88, "шт")
+# setters.add_work(supabase, 2, "каракуля", 88.88, "шт")
 
 # setters.delete_work(supabase, 219)
 # setters.add_material_category(supabase, "gg")
