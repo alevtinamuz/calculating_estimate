@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QPushButton, QSpacerItem, QSizePolicy,
                              QTableWidgetItem, QTableWidget, QHeaderView,
                              QMessageBox, QToolButton, QStackedWidget,
-                             QTabWidget, QComboBox, QLineEdit)
+                             QTabWidget, QComboBox, QLineEdit, QApplication)
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QCursor
 from supabase import create_client, Client
@@ -66,7 +66,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(table_selection_layout_widget)
 
         self.label = QLabel("База данных")
-        self.label.setStyleSheet(LABEL_STYLE)
+        # self.label.setStyleSheet(LABEL_STYLE)
         layout.addWidget(self.label)
 
         # Таблица для данных
@@ -104,6 +104,10 @@ class MainWindow(QMainWindow):
     def load_data_from_supabase(self):
         """Загружает данные из Supabase и отображает их в таблице"""
         try:
+            self.label.setText("Загрузка данных...")
+            self.table_db.setVisible(False)
+            QApplication.processEvents()
+
             data = []
             batch_size = 1000
             for i in range(0, 2500, batch_size):
@@ -134,10 +138,9 @@ class MainWindow(QMainWindow):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table_db.setItem(row_idx, col_idx, item)
 
-                    # if self.current_table == 'works':
-                    edit_btn = self.create_edit_btn(row_idx)
-                    delete_btn = self.create_delete_btn(row_idx)
-                    self.action_buttons[row_idx] = (edit_btn, delete_btn)
+                edit_btn = self.create_edit_btn(row_idx)
+                delete_btn = self.create_delete_btn(row_idx)
+                self.action_buttons[row_idx] = (edit_btn, delete_btn)
                 # # Создаем кнопки действий
                 # edit_btn = self.create_edit_btn(row_idx)
                 # delete_btn = self.create_delete_btn(row_idx)
@@ -145,26 +148,55 @@ class MainWindow(QMainWindow):
                 # # Сохраняем ссылки на кнопки
                 # self.action_buttons[row_idx] = (edit_btn, delete_btn)
 
-            # Настраиваем заголовки таблицы
-            header = self.table_db.horizontalHeader()
-            header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-
             self.table_db.verticalHeader().setVisible(False)
             self.table_db.setShowGrid(False)
             self.table_db.setFrameShape(QTableWidget.Shape.NoFrame)
 
             # self.label.setText(f"Загружено {len(data)} записей")
-
-            # Ресайз колонок по содержимому
-            self.table_db.resizeColumnsToContents()
             # self.label.setText("Данные успешно загружены")
             self.table_db.setStyleSheet(TABLE_STYLE)
-            # self.adjust_column_widths()
-            print("Данные обновлены")
+            print(self.table_db.width() + 1)
+
+            from PyQt6.QtCore import QTimer
+            self.table_db.viewport().update()
+            self.table_db.updateGeometry()
+
+            # Настраиваем ширину колонок
+            self.adjust_column_widths()
+
+            # Показываем таблицу
+            self.table_db.setVisible(True)
+            self.label.setText("Данные успешно загружены")
+
+            # Еще раз обновляем геометрию после отображения
+            QTimer.singleShot(200, lambda: [
+                self.adjust_column_widths(),
+                self.table_db.viewport().update()
+            ])
+
 
         except Exception as e:
             self.label.setText(f"Ошибка загрузки: {str(e)}")
             print('Error:', e)
+
+    def finalize_table_setup(self):
+      """Завершающая настройка таблицы после загрузки данных"""
+      try:
+          # Настраиваем размеры колонок
+          self.adjust_column_widths()
+
+          # Теперь показываем таблицу
+          self.table_db.setVisible(True)
+
+          # Принудительное обновление геометрии
+          self.table_db.viewport().updateGeometry()
+          self.table_db.updateGeometry()
+
+          print(f"Таблица отображена, ширина: {self.table_db.width()}")
+          print("Данные обновлены")
+
+      except Exception as e:
+          print(f"Ошибка при настройке таблицы: {str(e)}")
 
     def eventFilter(self, source, event):
         """Обработка событий мыши для показа/скрытия кнопок"""
@@ -377,28 +409,36 @@ class MainWindow(QMainWindow):
         return table_selection_layout_widget
 
     def adjust_column_widths(self):
-        header = self.table_db.horizontalHeader()
-        reserved_space = 80
-        total_width = self.table_db.viewport().width() - reserved_space
+      if not self.table_db.isVisible():
+        return
+      header = self.table_db.horizontalHeader()
+      reserved_space = 80
+      total_width = self.table_db.viewport().width() - reserved_space
+      print(total_width)
 
-        if self.current_table in ['works_categories', 'materials_categories']:
-            header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+      procents_section = {
+        0: 0.1,
+        1: 0.1,
+        2: 0.6,
+        3: 0.1,
+        4: 0.1
+      }
 
-            self.table_db.setColumnWidth(1, total_width - self.table_db.columnWidth(0))
+      procents_category = {
+        0: 0.1,
+        1: 0.9
+      }
 
-        elif self.current_table in ['works', 'materials']:
-            header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
-            header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+      if self.current_table in ['works_categories', 'materials_categories']:
+          for col, procent in procents_category.items():
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+            self.table_db.setColumnWidth(col, int(total_width * procent))
 
-            used_width = sum(self.table_db.columnWidth(i) for i in [0, 1, 3, 4])
-            remaining_width = max(100, total_width - used_width)
-            self.table_db.setColumnWidth(2, remaining_width)
-        header.setMinimumSectionSize(80)
-        header.setStretchLastSection(False)
+      elif self.current_table in ['works', 'materials']:
+          for col, procent in procents_section.items():
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+            self.table_db.setColumnWidth(col, int(total_width * procent))
+      header.setStretchLastSection(False)
 
     def create_table_estimate(self):
         table_estimate = QTableWidget()
