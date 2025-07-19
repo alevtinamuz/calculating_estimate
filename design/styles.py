@@ -43,6 +43,14 @@ TABLE_STYLE = """
         border: 1px solid #dee2e6;
         color: black;
     }
+    QTableWidget::item:selected {
+        background-color: #e6f3ff;
+        color: black;
+    }
+    QTableWidget {
+        gridline-color: transparent;
+        show-decoration-selected: 1; /* Показывать выделение на всей строке */
+    }
 """
 
 
