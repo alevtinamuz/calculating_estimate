@@ -51,6 +51,21 @@ TABLE_STYLE = """
         gridline-color: transparent;
         show-decoration-selected: 1; /* Показывать выделение на всей строке */
     }
+    
+    QTableWidget::item:edit-focus {
+        color: black;
+    }
+    
+    QLineEdit {
+        color: black;
+        background-color: white;
+        selection-color: white;
+        selection-background-color: #0078d7;
+    }
+    QSpinBox {
+        color: black;
+        background-color: white;
+    }
 """
 
 
@@ -150,5 +165,19 @@ TABLE_SELECTION_LAYOUT_STYLE = """
         padding: 10px;
         border-radius: 4px;
         border: 1px solid #eee;
+    }
+"""
+
+MENU_STYLE = """
+    QMenu {
+        background-color: white;
+        border: 1px solid #ccc;
+    }
+    QMenu::item {
+        padding: 5px 25px 5px 20px;
+        color: black;
+    }
+    QMenu::item:selected {
+        background-color: #e6f3ff;
     }
 """

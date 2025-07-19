@@ -3,15 +3,16 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QPushButton, QSpacerItem, QSizePolicy,
                              QTableWidgetItem, QTableWidget, QHeaderView,
                              QMessageBox, QToolButton, QStackedWidget,
-                             QTabWidget, QComboBox, QLineEdit, QApplication)
-from PyQt6.QtCore import Qt, QEvent
+                             QTabWidget, QComboBox, QLineEdit, QApplication, QMenu, QSpinBox, QStyledItemDelegate)
+from PyQt6.QtCore import Qt, QEvent, QTimer, QPoint
 from PyQt6.QtGui import QCursor
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import setters
 
 from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, TABLE_STYLE, TOOL_BUTTON_STYLE, TAB_STYLE, \
-    TABLE_SELECTION_LAYOUT_STYLE, COMBO_BOX_STYLE
+    TABLE_SELECTION_LAYOUT_STYLE, COMBO_BOX_STYLE, MENU_STYLE
+from getters import get_materials_by_substr, get_works_by_substr, get_materials_by_category, get_works_by_category
 
 
 class MainWindow(QMainWindow):
@@ -443,34 +444,174 @@ class MainWindow(QMainWindow):
     def create_table_estimate(self):
         table_estimate = QTableWidget()
         table_estimate.setStyleSheet(TABLE_STYLE)
-        table_estimate.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table_estimate.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)  # Выделение всей строки
+        table_estimate.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked | QTableWidget.EditTrigger.EditKeyPressed)
+        table_estimate.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table_estimate.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        table_estimate.setMouseTracking(True)  # Включаем отслеживание мыши
-        table_estimate.viewport().installEventFilter(self)  # Устанавливаем фильтр событий
-
+        table_estimate.setMouseTracking(True)
+        table_estimate.viewport().installEventFilter(self)
         table_estimate.itemSelectionChanged.connect(self.on_row_selected)
 
-        data = [["ghjk", "jhgv", "123", "mm"],
-                ["dfg", "sfgh", "123", "mm"],
-                ["dwser", "xvbn", "123", "mm"],
-                ["bnm", "324", "123", "mm"],
-                ["qwe", "drgdfh", "123", "mm"]]
-
-        table_estimate.setRowCount(len(data))
-        table_estimate.setColumnCount(len(data[0]))
-
-        headers = ["Name_", "Name", "Price", "Unit"]
+        headers = [
+            "№ п/п", "Наименование работ и затрат", "Ед. изм.", "К-во",
+            "Фактический ФОТ на ед.", "ФОТ всего", "Наименование материалов",
+            "Ед. изм.", "К-во", "Цена", "Сумма", "Всего"
+        ]
+        table_estimate.setColumnCount(len(headers))
         table_estimate.setHorizontalHeaderLabels(headers)
+        table_estimate.setRowCount(1)
 
-        for row_idx in range(len(data)):
-            for col_idx in range(len(data[0])):
-                item = QTableWidgetItem(data[row_idx][col_idx])
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                table_estimate.setItem(row_idx, col_idx, item)
+        # Устанавливаем делегат для ячеек
+        delegate = ComboBoxDelegate(table_estimate, self.supabase)
+        table_estimate.setItemDelegate(delegate)
 
         table_estimate.setStyleSheet(TABLE_STYLE)
 
         print("таблица создана")
 
         return table_estimate
+
+
+class ComboBoxDelegate(QStyledItemDelegate):
+    def __init__(self, parent, supabase):
+        super().__init__(parent)
+        self.supabase = supabase
+        self.current_editor = None
+        self.current_row = -1
+        self.current_col = -1
+        self.editor_pos_offset = QPoint(-70, 0)
+
+    def createEditor(self, parent, option, index):
+        if index.column() in [1, 6]:
+            try:
+                editor = QWidget(parent, Qt.WindowType.Popup)
+                editor.setWindowFlag(Qt.WindowType.FramelessWindowHint)
+                editor.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+                editor.setStyleSheet(COMBO_BOX_STYLE)
+
+                layout = QHBoxLayout(editor)
+                layout.setContentsMargins(2, 2, 2, 2)
+
+                # Ваши комбобоксы
+                self.main_combo = QComboBox(editor)
+                self.sub_combo = QComboBox(editor)
+                layout.addWidget(self.main_combo)
+                layout.addWidget(self.sub_combo)
+
+                # Заполнение данными
+                self.load_initial_data(index.column())
+
+                # Позиционирование при создании
+                self.adjust_editor_position(editor, parent, index)
+
+                self.current_editor = editor
+                return editor
+
+            except Exception as e:
+                print(f"Editor error: {e}")
+                return super().createEditor(parent, option, index)
+
+        elif index.column() in [3, 8]:  # Ячейки с количеством
+            editor = QSpinBox(parent)
+            editor.setMinimum(0)
+            editor.setMaximum(999999)
+
+            return editor
+
+    def adjust_editor_position(self, editor, parent, index):
+        """Безопасное позиционирование редактора"""
+        try:
+            table = parent.parent()  # Получаем таблицу из viewport
+            if not table:
+                return
+
+            rect = table.visualRect(index)
+            global_pos = table.viewport().mapToGlobal(rect.bottomLeft())
+
+            # Применяем смещение
+            editor.move(global_pos + self.editor_pos_offset)
+            editor.resize(max(rect.width(), 300), editor.sizeHint().height())
+
+        except Exception as e:
+            print(f"Positioning error: {e}")
+
+    def updateEditorGeometry(self, editor, option, index):
+        """Упрощенная версия без рекурсии"""
+        if index.column() in [1, 6]:
+            try:
+                # Используем абсолютные координаты
+                rect = option.rect
+                global_pos = editor.parent().mapToGlobal(rect.bottomLeft())
+                editor.move(global_pos + self.editor_pos_offset)
+                editor.resize(max(rect.width(), 300), editor.sizeHint().height())
+            except:
+                super().updateEditorGeometry(editor, option, index)
+        else:
+            super().updateEditorGeometry(editor, option, index)
+
+    def load_initial_data(self, column):
+        """Загрузка начальных данных в комбобоксы"""
+        entity_type = "works" if column == 1 else "materials"
+        try:
+            categories = self.supabase.table(f"{entity_type}_categories").select('*').execute().data
+            self.main_combo.clear()
+            for cat in categories:
+                self.main_combo.addItem(cat['name'], cat['id'])
+
+            # Загружаем подчиненные элементы
+            self.update_sub_combo()
+
+        except Exception as e:
+            print(f"Data loading error: {e}")
+
+    def update_sub_combo(self):
+        """Обновление подчиненного комбобокса"""
+        if hasattr(self, 'main_combo') and self.main_combo.count() > 0:
+            cat_id = self.main_combo.currentData()
+            entity_type = "works" if self.current_col == 1 else "materials"
+
+            try:
+                items = self.supabase.table(entity_type) \
+                    .select('*') \
+                    .eq('category_id', cat_id) \
+                    .execute().data
+
+                self.sub_combo.clear()
+                for item in items:
+                    self.sub_combo.addItem(item['name'], item['id'])
+
+            except Exception as e:
+                print(f"Sub-combo update error: {e}")
+
+    def on_work_selected(self, index):
+        """Обрабатывает выбор конкретной работы/материала"""
+        if index >= 0:
+            selected_text = self.sub_combo.currentText()
+            self.commitData.emit(self.current_editor)  # Важно для сохранения данных
+
+            # Устанавливаем значение в таблицу
+            table = self.parent()
+            item = table.item(self.current_row, self.current_col)
+            if item is None:
+                item = QTableWidgetItem(selected_text)
+                table.setItem(self.current_row, self.current_col, item)
+            else:
+                item.setText(selected_text)
+
+            print(f"Выбрано: {selected_text}")
+
+    def setModelData(self, editor, model, index):
+        """Сохраняет выбранное значение в модель"""
+        if index.column() in [1, 6]:
+            selected_text = self.sub_combo.currentText()
+            model.setData(index, selected_text)
+        elif index.column() in [3, 8]:  # Для ячеек с количеством
+            # Получаем значение из QSpinBox и сохраняем в модель
+            value = editor.value()
+            model.setData(index, value)
+
+    def destroyEditor(self, editor, index):
+        """Очищаем ссылки при уничтожении редактора"""
+        self.current_editor = None
+        self.main_combo = None
+        self.sub_combo = None
+        super().destroyEditor(editor, index)
