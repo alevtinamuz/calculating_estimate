@@ -54,7 +54,7 @@ def update_category_id_of_material(supabase, id, new_category_id):
   
 def update_category_id_of_work(supabase, id, new_category_id):
   response = (
-    supabase.table("work")
+    supabase.table("works")
     .update({"category_id": new_category_id})
     .eq("id", id)
     .execute()
