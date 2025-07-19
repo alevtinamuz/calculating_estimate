@@ -77,7 +77,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.refresh_button)
 
         self.load_data_from_supabase()
-        
+
         self.page_db.setLayout(layout)
 
     def on_table_changed(self, table_name):
@@ -95,6 +95,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.label_estimate)
 
         # Здесь можно добавить виджеты для работы со сметой
+
+        self.table_estimate = self.create_table_estimate()
+        layout.addWidget(self.table_estimate)
 
         self.page_estimate.setLayout(layout)
 
@@ -131,7 +134,7 @@ class MainWindow(QMainWindow):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table_db.setItem(row_idx, col_idx, item)
 
-                # if self.current_table == 'works':
+                    # if self.current_table == 'works':
                     edit_btn = self.create_edit_btn(row_idx)
                     delete_btn = self.create_delete_btn(row_idx)
                     self.action_buttons[row_idx] = (edit_btn, delete_btn)
@@ -156,7 +159,7 @@ class MainWindow(QMainWindow):
             self.table_db.resizeColumnsToContents()
             # self.label.setText("Данные успешно загружены")
             self.table_db.setStyleSheet(TABLE_STYLE)
-            self.adjust_column_widths()
+            # self.adjust_column_widths()
             print("Данные обновлены")
 
         except Exception as e:
@@ -186,22 +189,22 @@ class MainWindow(QMainWindow):
                 self.set_pos_action_buttons(row)
 
     def hide_all_tool_buttons(self):
-      """Скрывает все кнопки, кроме кнопок выбранной строки"""
-      selected_row = self.get_selected_row()
-      for row, buttons in self.action_buttons.items():
-          if row != selected_row:
-              for btn in buttons:
-                  btn.hide()
-                  
+        """Скрывает все кнопки, кроме кнопок выбранной строки"""
+        selected_row = self.get_selected_row()
+        for row, buttons in self.action_buttons.items():
+            if row != selected_row:
+                for btn in buttons:
+                    btn.hide()
+
     def get_selected_row(self):
-      """Возвращает номер выбранной строки или -1 если нет выбора"""
-      selected = self.table_db.selectedItems()
-      return selected[0].row() if selected else -1
+        """Возвращает номер выбранной строки или -1 если нет выбора"""
+        selected = self.table_db.selectedItems()
+        return selected[0].row() if selected else -1
 
     def edit_row(self, row):
         """Обработка редактирования строки"""
         record_id = self.table_db.item(row, 0).text()
-        
+
         # if self.current_table in ['works', 'materials']:
         #   msg_box = QMessageBox(self)
         #   msg_box.setWindowTitle('Изменить запись')
@@ -211,7 +214,7 @@ class MainWindow(QMainWindow):
         #   msg_box.layout().addWidget(input_field, 1, 1)
         #   msg_box.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
         #   msg_box.setDefaultButton(QMessageBox.StandardButton.Ok)
-        
+
         print(f"Редактирование записи с ID: {record_id}")
 
     def delete_row(self, row):
@@ -219,33 +222,33 @@ class MainWindow(QMainWindow):
         record_id = self.table_db.item(row, 0).text()
 
         if self.current_table in ['works', 'materials']:
-          reply = QMessageBox.question(
-              self, 'Удаление записи',
-              f'Вы уверены, что хотите удалить запись с ID {record_id}?',
-              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-          )
+            reply = QMessageBox.question(
+                self, 'Удаление записи',
+                f'Вы уверены, что хотите удалить запись с ID {record_id}?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
         elif self.current_table in ['works_categories', 'materials_categories']:
-          reply = QMessageBox.question(
-              self, 'Удаление категории',
-              f'Вы уверены, что хотите удалить категорию с ID {record_id}?',
-              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-          )
+            reply = QMessageBox.question(
+                self, 'Удаление категории',
+                f'Вы уверены, что хотите удалить категорию с ID {record_id}?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
 
         if reply == QMessageBox.StandardButton.Yes:
             try:
-              if self.current_table == 'works':
-                setters.delete_work(self.supabase, record_id)
-              elif self.current_table == 'materials':
-                setters.delete_material(self.supabase, record_id)
-              elif self.current_table == 'works_categories':
-                setters.delete_work_category(self.supabase, record_id)
-              elif self.current_table == 'materials_categories':
-                setters.delete_material_category(self.supabase, record_id)
-              if self.current_table in ['works', 'materials']:
-                self.label.setText(f"Запись с ID {record_id} удалена")
-              elif self.current_table in ['works_categories', 'materials_categories']:
-                self.label.setText(f"Категория с ID {record_id} удалена")
-              self.load_data_from_supabase()
+                if self.current_table == 'works':
+                    setters.delete_work(self.supabase, record_id)
+                elif self.current_table == 'materials':
+                    setters.delete_material(self.supabase, record_id)
+                elif self.current_table == 'works_categories':
+                    setters.delete_work_category(self.supabase, record_id)
+                elif self.current_table == 'materials_categories':
+                    setters.delete_material_category(self.supabase, record_id)
+                if self.current_table in ['works', 'materials']:
+                    self.label.setText(f"Запись с ID {record_id} удалена")
+                elif self.current_table in ['works_categories', 'materials_categories']:
+                    self.label.setText(f"Категория с ID {record_id} удалена")
+                self.load_data_from_supabase()
             except Exception as e:
                 self.label.setText(f"Ошибка удаления: {str(e)}")
                 print('Error:', e)
@@ -297,7 +300,7 @@ class MainWindow(QMainWindow):
         table_db.setStyleSheet(TABLE_STYLE)
         table_db.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table_db.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)  # Выделение всей строки
-        table_db.setSelectionMode(QTableWidget.SelectionMode.SingleSelection) 
+        table_db.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         table_db.setMouseTracking(True)  # Включаем отслеживание мыши
         table_db.viewport().installEventFilter(self)  # Устанавливаем фильтр событий
 
@@ -306,14 +309,14 @@ class MainWindow(QMainWindow):
         print("таблица создана")
 
         return table_db
-      
+
     def on_row_selected(self):
-      """Обработчик выбора строки - показывает кнопки для выбранной строки"""
-      selected = self.table_db.selectedItems()
-      if selected:
-          row = selected[0].row()
-          self.current_hovered_row = row  # Сохраняем выбранную строку
-          self.show_tool_buttons(row, None)
+        """Обработчик выбора строки - показывает кнопки для выбранной строки"""
+        selected = self.table_db.selectedItems()
+        if selected:
+            row = selected[0].row()
+            self.current_hovered_row = row  # Сохраняем выбранную строку
+            self.show_tool_buttons(row, None)
 
     def set_pos_action_buttons(self, row):
         edit_btn, delete_btn = self.action_buttons[row]
@@ -372,27 +375,62 @@ class MainWindow(QMainWindow):
         table_selection_layout.addStretch()
 
         return table_selection_layout_widget
-      
+
     def adjust_column_widths(self):
-      header = self.table_db.horizontalHeader()
-      reserved_space = 80
-      total_width = self.table_db.viewport().width() - reserved_space
-      
-      if self.current_table in ['works_categories', 'materials_categories']:
-          header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-          header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-          
-          self.table_db.setColumnWidth(1, total_width - self.table_db.columnWidth(0))
-          
-      elif self.current_table in ['works', 'materials']:
-          header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-          header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-          header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
-          header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-          header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-          
-          used_width = sum(self.table_db.columnWidth(i) for i in [0,1,3,4])
-          remaining_width = max(100, total_width - used_width)
-          self.table_db.setColumnWidth(2, remaining_width)
-      header.setMinimumSectionSize(80)
-      header.setStretchLastSection(False)
+        header = self.table_db.horizontalHeader()
+        reserved_space = 80
+        total_width = self.table_db.viewport().width() - reserved_space
+
+        if self.current_table in ['works_categories', 'materials_categories']:
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+
+            self.table_db.setColumnWidth(1, total_width - self.table_db.columnWidth(0))
+
+        elif self.current_table in ['works', 'materials']:
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+            header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+
+            used_width = sum(self.table_db.columnWidth(i) for i in [0, 1, 3, 4])
+            remaining_width = max(100, total_width - used_width)
+            self.table_db.setColumnWidth(2, remaining_width)
+        header.setMinimumSectionSize(80)
+        header.setStretchLastSection(False)
+
+    def create_table_estimate(self):
+        table_estimate = QTableWidget()
+        table_estimate.setStyleSheet(TABLE_STYLE)
+        table_estimate.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table_estimate.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)  # Выделение всей строки
+        table_estimate.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table_estimate.setMouseTracking(True)  # Включаем отслеживание мыши
+        table_estimate.viewport().installEventFilter(self)  # Устанавливаем фильтр событий
+
+        table_estimate.itemSelectionChanged.connect(self.on_row_selected)
+
+        data = [["ghjk", "jhgv", "123", "mm"],
+                ["dfg", "sfgh", "123", "mm"],
+                ["dwser", "xvbn", "123", "mm"],
+                ["bnm", "324", "123", "mm"],
+                ["qwe", "drgdfh", "123", "mm"]]
+
+        table_estimate.setRowCount(len(data))
+        table_estimate.setColumnCount(len(data[0]))
+
+        headers = ["Name_", "Name", "Price", "Unit"]
+        table_estimate.setHorizontalHeaderLabels(headers)
+
+        for row_idx in range(len(data)):
+            for col_idx in range(len(data[0])):
+                item = QTableWidgetItem(data[row_idx][col_idx])
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                table_estimate.setItem(row_idx, col_idx, item)
+
+        table_estimate.setStyleSheet(TABLE_STYLE)
+
+        print("таблица создана")
+
+        return table_estimate
