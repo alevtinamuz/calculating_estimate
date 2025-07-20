@@ -10,6 +10,7 @@ from PyQt6.QtGui import QCursor
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import setters, getters
+from design.classes import WorkItem, MaterialItem
 
 from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, TABLE_STYLE, TOOL_BUTTON_STYLE, TAB_STYLE, \
     TABLE_SELECTION_LAYOUT_STYLE, COMBO_BOX_STYLE, MENU_STYLE
@@ -21,6 +22,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Calculating estimate")
         self.setStyleSheet(MAIN_WINDOW_STYLE)
+        self.works = []
 
         # Инициализация Supabase
         self.supabase_init()
@@ -563,6 +565,7 @@ class MainWindow(QMainWindow):
 
             # Настройки таблицы
             self.table_estimate.setStyleSheet(TABLE_STYLE)
+            self.table_estimate.setShowGrid(False)
             self.table_estimate.setEditTriggers(
                 QTableWidget.EditTrigger.DoubleClicked |
                 QTableWidget.EditTrigger.EditKeyPressed
@@ -578,22 +581,29 @@ class MainWindow(QMainWindow):
             ]
             self.table_estimate.setColumnCount(len(headers))
             self.table_estimate.setHorizontalHeaderLabels(headers)
-            self.table_estimate.setRowCount(1)  # Начальная строка
+            self.table_estimate.setRowCount(0)  # Начальная строка
 
             # Делегат
-            self.delegate = ComboBoxDelegate(self.table_estimate, self.supabase)
+            self.delegate = ComboBoxDelegate(self.table_estimate, self.supabase, self)
             self.table_estimate.setItemDelegate(self.delegate)
 
-            # Кнопка добавления строки
-            self.add_row_button = QPushButton("Добавить строку")
-            self.add_row_button.setStyleSheet(BUTTON_STYLE)
-            self.add_row_button.clicked.connect(self.add_row_to_estimate)
-
-            # Компоновка
             layout.addWidget(self.table_estimate)
-            layout.addWidget(self.add_row_button)
 
-            # container = QWidget()
+            button_layout = QHBoxLayout()
+
+            self.add_work_button = QPushButton("Добавить работу")
+            self.add_work_button.clicked.connect(lambda: self.add_row_to_estimate(is_work=True))
+            self.add_work_button.setStyleSheet(BUTTON_STYLE)
+
+            self.add_material_button = QPushButton("Добавить материал")
+            self.add_material_button.clicked.connect(lambda: self.add_row_to_estimate(is_work=False))
+            self.add_material_button.setStyleSheet(BUTTON_STYLE)
+
+            button_layout.addWidget(self.add_work_button)
+            button_layout.addWidget(self.add_material_button)
+
+            layout.addLayout(button_layout)
+
             self.estimate_container.setLayout(layout)
 
             print("Таблица успешно создана")
@@ -603,25 +613,88 @@ class MainWindow(QMainWindow):
             print(f"Ошибка создания таблицы: {e}")
             raise
 
-    def add_row_to_estimate(self):
+    def add_row_to_estimate(self, is_work=True):
         try:
-            # Теперь обращаемся напрямую к таблице
             table = self.findChild(QTableWidget, "estimateTable")
-            if table:
-                table.insertRow(table.rowCount())
+            row_count = table.rowCount()
+            table.insertRow(row_count)
+
+            if is_work:
+                # Добавляем новую работу
+                self.works.append(WorkItem())
+                # Устанавливаем номер строки
+                last_num = 0
+                for row in range(table.rowCount() - 1):
+                    item = table.item(row, 0)
+                    if item and item.text().isdigit():
+                        last_num = max(last_num, int(item.text()))
+
+                # Устанавливаем новый номер (последний + 1)
+                item = QTableWidgetItem(str(last_num + 1))
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table.setItem(row_count, 0, item)
+
+                # Устанавливаем делегаты для ячеек работы
+                for col in [1, 2, 3, 4, 5]:
+                    table.setItem(row_count, col, QTableWidgetItem(""))
+
+                for col in range(table.columnCount()):
+                    if not table.item(row_count, col):  # Если ячейка еще не создана
+                        item = QTableWidgetItem("")
+                        table.setItem(row_count, col, item)
+
+                    # Устанавливаем атрибут для работы
+                    item = table.item(row_count, col)
+                    item.setData(Qt.ItemDataRole.UserRole, "is_work")
+            else:
+                # Добавляем материал к последней работе
+                if not self.works:
+                    self.add_row_to_estimate(is_work=True)
+                    return
+
+                self.works[-1].materials.append(MaterialItem())
+
+                # Находим первую строку работы (она могла быть выше)
+                work_row = self.find_work_row(row_count)
+
+                # Объединяем ячейки работы вертикально с материалом
+                for col in range(6):  # Колонки 0-5
+                    table.setSpan(work_row, col, row_count - work_row + 1, 1)  # Объединяем по вертикали
+
+                    # Делаем объединенные ячейки нередактируемыми
+                    if col > 0:  # Колонка 0 уже нередактируемая
+                        item = table.item(work_row, col)
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+
+                # Заполняем ячейки материала
+                for col in range(6, table.columnCount()):
+                    item = QTableWidgetItem("")
+                    item.setData(Qt.ItemDataRole.UserRole, "is_material")
+                    table.setItem(row_count, col, item)
 
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось добавить строку: {str(e)}")
 
+    def find_work_row(self, material_row):
+        """Находит строку работы для указанной строки материала"""
+        table = self.findChild(QTableWidget, "estimateTable")
+        row = material_row - 1
+        while row >= 0:
+            if table.item(row, 0) and table.item(row, 0).data(Qt.ItemDataRole.UserRole) == "is_work":
+                return row
+            row -= 1
+        return material_row
+
 
 class ComboBoxDelegate(QStyledItemDelegate):
-    def __init__(self, parent, supabase):
+    def __init__(self, parent, supabase, main_window):
         super().__init__(parent)
         self.supabase = supabase
         self.current_editor = None
         self.current_row = -1
         self.current_col = -1
         self.editor_pos_offset = QPoint(-70, 0)
+        self.main_window = main_window
 
         load_dotenv()
         self.supabase: Client = create_client(
@@ -739,28 +812,76 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
     def setModelData(self, editor, model, index):
         """Сохраняет выбранное значение в модель"""
-        if index.column() in [1, 6]:
+        if index.column() in [1, 6]:  # Обрабатываем только колонки с названиями
             selected_id = self.sub_combo.currentData()
             selected_text = self.sub_combo.currentText()
-            print(selected_id, 'text')
             model.setData(index, selected_text)
 
-            table_name = "works" if index.column() == 1 else "materials"
+            try:
+                # Определяем тип сущности (работа или материал)
+                entity_type = "works" if index.column() == 1 else "materials"
+                entities = getters.get_entity_by_id(self.supabase, entity_type, selected_id)
 
-            entity = getters.get_entity_by_id(self.supabase, table_name, selected_id)[0]
+                if not entities:
+                    print(f"Не найдена сущность с ID: {selected_id}")
+                    return
 
-            print(entity)
+                entity = entities[0]
 
-            price_index = model.index(index.row(), 4) if index.column() == 1 else model.index(index.row(), 9)
-            model.setData(price_index, entity['price'])
+                if index.column() == 1:  # Обработка работы
+                    # Проверяем и расширяем список работ при необходимости
+                    while index.row() >= len(self.main_window.works):
+                        self.main_window.works.append(WorkItem())
 
-            unit_index = model.index(index.row(), 2) if index.column() == 1 else model.index(index.row(), 7)
-            model.setData(unit_index, entity['unit'])
+                    work = self.main_window.works[index.row()]
+                    work.name = selected_text
+                    work.unit = entity['unit']
+
+                    # Обновляем ячейки цены и единиц измерения
+                    price_index = model.index(index.row(), 4)
+                    model.setData(price_index, entity['price'])
+
+                    unit_index = model.index(index.row(), 2)
+                    model.setData(unit_index, entity['unit'])
+
+                elif index.column() == 6:  # Обработка материала
+                    # Находим родительскую работу для этого материала
+                    work_row = index.row()
+                    while work_row >= 0 and not model.index(work_row, 0).data():
+                        work_row -= 1
+
+                    if work_row >= 0:
+                        # Проверяем границы списка работ
+                        if work_row >= len(self.main_window.works):
+                            # Добавляем новую работу, если не существует
+                            self.main_window.works.append(WorkItem())
+
+                        # Добавляем новый материал к работе
+                        material = MaterialItem()
+                        material.name = selected_text
+                        material.unit = entity['unit']
+                        material.price = entity['price']
+
+                        self.main_window.works[work_row].materials.append(material)
+
+                        # Обновляем ячейки цены и единиц измерения материала
+                        price_index = model.index(index.row(), 9)
+                        model.setData(price_index, entity['price'])
+
+                        unit_index = model.index(index.row(), 7)
+                        model.setData(unit_index, entity['unit'])
+
+            except IndexError as ie:
+                print(f"Ошибка индекса при обновлении данных: {ie}")
+            except Exception as e:
+                print(f"Не удалось обновить данные: {e}")
 
         elif index.column() in [3, 8]:  # Для ячеек с количеством
-            # Получаем значение из QSpinBox и сохраняем в модель
-            value = editor.value()
-            model.setData(index, value)
+            try:
+                value = editor.value()
+                model.setData(index, value)
+            except Exception as e:
+                print(f"Не удалось обновить количество: {e}")
 
     def destroyEditor(self, editor, index):
         """Очищаем ссылки при уничтожении редактора"""

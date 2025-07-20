@@ -36,7 +36,10 @@ TABLE_STYLE = """
         border: 1px solid #dee2e6;
         border-radius: 5px;
         color: black;
+        gridline-color: transparent;
+        outline: 0;
     }
+    
     QHeaderView::section {
         background-color: #e9ecef;
         padding: 5px;
@@ -47,6 +50,14 @@ TABLE_STYLE = """
         background-color: #e6f3ff;
         color: black;
     }
+    
+    QTableWidget::item {
+        background-color: white;
+        color: black;
+        border-bottom: 1px solid black;
+        border-right: 1px solid black;
+    }
+    
     QTableWidget {
         gridline-color: transparent;
         show-decoration-selected: 1; /* Показывать выделение на всей строке */
@@ -66,6 +77,16 @@ TABLE_STYLE = """
         color: black;
         background-color: white;
     }
+    
+    QTableWidget::item[is_work="true"] {
+    background-color: #f0f7ff;
+    font-weight: bold;
+}
+
+QTableWidget::item[is_material="true"] {
+    background-color: #f9f9f9;
+    padding-left: 20px;
+}
 """
 
 
