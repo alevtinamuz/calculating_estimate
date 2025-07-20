@@ -1,5 +1,3 @@
-from PyQt6.QtGui import QColor
-
 # Стили для главного окна
 MAIN_WINDOW_STYLE = """
     QWidget {

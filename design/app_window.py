@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                             QTabWidget, QComboBox, QLineEdit, QApplication, QDialog, QDialogButtonBox, QMenu, QSpinBox, QStyledItemDelegate,
                             QDoubleSpinBox, QFormLayout)
 from PyQt6.QtCore import Qt, QEvent, QTimer, QPoint
-from PyQt6.QtGui import QCursor
+from PyQt6.QtGui import QCursor, QMovie
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import setters, getters
@@ -103,8 +103,15 @@ class MainWindow(QMainWindow):
     def load_data_from_supabase(self):
         """Загружает данные из Supabase и отображает их в таблице"""
         try:
-            self.label.setText("Загрузка данных...")
+            gif_path = os.path.join(os.path.dirname(__file__), "spinner.gif")
+            loading_movie = QMovie(gif_path)
+            self.label.setMovie(loading_movie)
+            loading_movie.start()
+            # print(loading_movie.isValid())  # Должно быть True
+            # print(loading_movie.frameCount())  # Должно быть > 0
+            QApplication.processEvents() 
             self.label.setVisible(True) 
+            
             self.table_db.setVisible(False)
             QApplication.processEvents()
 
