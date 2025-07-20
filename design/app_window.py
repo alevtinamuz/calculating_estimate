@@ -68,7 +68,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(table_selection_layout_widget)
 
         self.label = QLabel("База данных")
-        # self.label.setStyleSheet(LABEL_STYLE)
+        self.label.setStyleSheet(LABEL_STYLE)
         layout.addWidget(self.label)
 
         # Таблица для данных
@@ -345,7 +345,6 @@ class MainWindow(QMainWindow):
                   setters.update_category_id_of_work(self.supabase, record_id, new_category_work)
               elif self.current_table == 'materials':
                   new_category_material = category_combo_material.currentData()
-                  print("kzkzkzk", new_category_material)
                   setters.update_name_of_materials(self.supabase, record_id, new_name)
                   setters.update_price_of_material(self.supabase, record_id, new_price)
                   setters.update_unit_of_materials(self.supabase, record_id, new_unit)
