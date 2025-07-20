@@ -62,10 +62,10 @@ class MainWindow(QMainWindow):
         """Создает первую страницу (база данных)"""
 
         self.page_db = QWidget()
-        layout = QVBoxLayout()
-
-        table_selection_layout_widget = self.create_table_selector()
-        layout.addWidget(table_selection_layout_widget)
+        layout = QVBoxLayout(self.page_db)
+        
+        header_of_widget = self.create_header_of_table()
+        layout.addWidget(header_of_widget)
 
         self.label = QLabel("База данных")
         self.label.setStyleSheet(LABEL_STYLE)
@@ -74,9 +74,6 @@ class MainWindow(QMainWindow):
         # Таблица для данных
         self.table_db = self.create_table_db()
         layout.addWidget(self.table_db)
-
-        self.refresh_button = self.create_refresh_button()
-        layout.addWidget(self.refresh_button)
 
         self.load_data_from_supabase()
 
@@ -107,6 +104,7 @@ class MainWindow(QMainWindow):
         """Загружает данные из Supabase и отображает их в таблице"""
         try:
             self.label.setText("Загрузка данных...")
+            self.label.setVisible(True) 
             self.table_db.setVisible(False)
             QApplication.processEvents()
 
@@ -180,8 +178,9 @@ class MainWindow(QMainWindow):
             self.adjust_column_widths()
 
             # Показываем таблицу
+            self.label.setVisible(False) 
             self.table_db.setVisible(True)
-            self.label.setText("Данные успешно загружены")
+            # self.label.setText("Данные успешно загружены")
 
             # Еще раз обновляем геометрию после отображения
             QTimer.singleShot(200, lambda: [
@@ -247,6 +246,108 @@ class MainWindow(QMainWindow):
         """Возвращает номер выбранной строки или -1 если нет выбора"""
         selected = self.table_db.selectedItems()
         return selected[0].row() if selected else -1
+
+    def add_row(self, row):
+      """Обработка редактирования строки с формой из нескольких полей"""
+      # Определяем заголовок и текущие значения
+      if self.current_table in ['works', 'materials']:
+          title = "Добавление записи"
+          current_name = "Введите название записи"
+          current_price = 99.99
+          current_unit = "м2"
+          current_category = "Выберите категорию"
+      elif self.current_table in ['works_categories', 'materials_categories']:
+          title = "Добавление категории"
+          current_name = "Введите название категории"
+          
+      # Создаем диалоговое окно
+      dialog = QDialog(self)
+      dialog.setWindowTitle(title)
+      dialog.setMinimumWidth(300)
+
+      # Основной layout
+      main_layout = QVBoxLayout()
+
+      # Создаем форму с полями
+      form_layout = QFormLayout()
+
+      # Поле "Название"
+      name_input = QLineEdit()
+      name_input.setText(current_name)
+      form_layout.addRow("Название:", name_input)
+
+      # Поле "Цена" (только для works/materials)
+      if self.current_table in ['works', 'materials']:
+          price_input = QDoubleSpinBox()
+          price_input.setPrefix("₽ ")       # Добавляем символ рубля
+          price_input.setMaximum(9999999999)
+          price_input.setValue(current_price)
+          form_layout.addRow("Цена:", price_input)
+          unit_input = QLineEdit()
+          unit_input.setText(current_unit)
+          form_layout.addRow("Ед. изм.:", unit_input)
+          if self.current_table == 'works':
+            category_combo_work = QComboBox()
+            categories_work = getters.get_all_table(self.supabase, 'works_categories')
+            for category in categories_work:
+              category_combo_work.addItem(category['name'], userData=category['id'])
+            category_combo_work.setCurrentText(current_category)
+            form_layout.addRow("Категория работ:", category_combo_work)
+          if self.current_table == 'materials':
+            category_combo_material = QComboBox()
+            categories_material = getters.get_all_table(self.supabase, 'materials_categories')
+            for category in categories_material:
+              category_combo_material.addItem(category['name'], userData=category['id'])
+            category_combo_material.setCurrentText(current_category)
+            form_layout.addRow("Категория работ:", category_combo_material)
+
+
+      main_layout.addLayout(form_layout)
+
+      # Кнопки (Save/Cancel)
+      button_box = QDialogButtonBox(
+          QDialogButtonBox.StandardButton.Save |
+          QDialogButtonBox.StandardButton.Cancel
+      )
+      button_box.accepted.connect(dialog.accept)
+      button_box.rejected.connect(dialog.reject)
+      main_layout.addWidget(button_box)
+
+      dialog.setLayout(main_layout)
+
+      # Обработка результата
+      if dialog.exec() == QDialog.DialogCode.Accepted:
+          new_name = name_input.text()
+
+          # Проверка на пустое название
+          if not new_name.strip():
+              QMessageBox.warning(self, "Ошибка", "Название не может быть пустым")
+              return
+
+          try:
+              # Добавляем цену для работ/материалов
+              if self.current_table in ['works', 'materials']:
+                  new_price = price_input.value()
+                  new_unit = unit_input.text()
+
+              # Обновляем данные в Supabase
+              if self.current_table == 'works':
+                  new_category_work = category_combo_work.currentData()
+                  setters.add_work(self.supabase, new_category_work, new_name, new_price, new_unit)
+              elif self.current_table == 'materials':
+                  new_category_material = category_combo_material.currentData()
+                  setters.add_material(self.supabase, new_category_material, new_name, new_price, new_unit)
+              elif self.current_table == 'works_categories':
+                  setters.add_work_category(self.supabase, new_name)
+              elif self.current_table == 'materials_categories':
+                  setters.add_material_category(self.supabase, new_name)
+
+              # Обновляем таблицу
+              self.load_data_from_supabase()
+              QMessageBox.information(self, "Успех", "Данные успешно обновлены!")
+
+          except Exception as e:
+              QMessageBox.critical(self, "Ошибка", f"Не удалось обновить запись: {str(e)}")
 
     def edit_row(self, row):
       """Обработка редактирования строки с формой из нескольких полей"""
@@ -435,9 +536,19 @@ class MainWindow(QMainWindow):
         # Кнопка загрузки данных
         refresh_button = QPushButton("Обновить данные")
         refresh_button.setStyleSheet(BUTTON_STYLE)
+        refresh_button.setFixedSize(150, 30)
         refresh_button.clicked.connect(self.load_data_from_supabase)
 
         return refresh_button
+      
+    def create_add_button(self, row_idx=None):
+        add_button = QPushButton("➕")
+        add_button.setStyleSheet(BUTTON_STYLE)
+        add_button.setFixedSize(150, 30)
+        add_button.setToolTip("Добавить данные")
+        add_button.clicked.connect(lambda _, r=row_idx: self.add_row(r))
+        
+        return add_button
 
     def create_table_db(self):
         table_db = QTableWidget()
@@ -449,9 +560,6 @@ class MainWindow(QMainWindow):
         table_db.viewport().installEventFilter(self)  # Устанавливаем фильтр событий
 
         table_db.itemSelectionChanged.connect(self.on_row_selected)
-
-        print("таблица создана")
-
         return table_db
 
     def on_row_selected(self):
@@ -497,60 +605,84 @@ class MainWindow(QMainWindow):
         )
 
     def create_table_selector(self):
-        # Создаем горизонтальный layout для выбора таблицы
-        table_selection_layout = QHBoxLayout()
-        table_selection_layout_widget = QWidget()
-        table_selection_layout_widget.setLayout(table_selection_layout)
-        table_selection_layout_widget.setStyleSheet(TABLE_SELECTION_LAYOUT_STYLE)
-
-        self.label = QLabel("Выберите таблицу:")
-        self.label.setStyleSheet(LABEL_STYLE)
-        table_selection_layout.addWidget(self.label)
-
         # Создаем выпадающий список для выбора таблицы
         self.table_selector = QComboBox()
         self.table_selector.setStyleSheet(COMBO_BOX_STYLE)  # Применяем стиль
         self.table_selector.addItems(["works", "works_categories", "materials", "materials_categories"])
         self.table_selector.setCurrentText(self.current_table)
         self.table_selector.currentTextChanged.connect(self.on_table_changed)
-        table_selection_layout.addWidget(self.table_selector)
-
-        # Добавляем растягивающийся элемент
-        table_selection_layout.addStretch()
-
-        return table_selection_layout_widget
+        
+        return self.table_selector
+        
+        
+    def create_header_of_table(self):
+        """Создает фиксированный заголовок таблицы"""
+        header_widget = QWidget()
+        header_widget.setStyleSheet(TABLE_SELECTION_LAYOUT_STYLE)
+        
+        # Основной layout с фиксированными параметрами
+        main_layout = QHBoxLayout(header_widget)
+        main_layout.setContentsMargins(10, 5, 10, 5)  # Отступы: слева, сверху, справа, снизу
+        main_layout.setSpacing(10)
+        
+        # Метка выбора таблицы
+        label = QLabel("Выберите таблицу:")
+        label.setStyleSheet(LABEL_STYLE)
+        label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        main_layout.addWidget(label)
+        
+        # Комбобокс выбора таблицы
+        table_selector = self.create_table_selector()
+        table_selector.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        main_layout.addWidget(table_selector)
+        
+        # Растягивающийся элемент между комбобоксом и кнопкой
+        main_layout.addStretch()
+        
+        add_button = self.create_add_button()
+        add_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        main_layout.addWidget(add_button)
+        
+        # Кнопка обновления с фиксированным размером
+        refresh_button = self.create_refresh_button()
+        refresh_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        main_layout.addWidget(refresh_button)
+        
+        # Фиксируем размер всего заголовка
+        header_widget.setFixedHeight(60)  # Фиксированная высота заголовка
+        
+        return header_widget
 
     def adjust_column_widths(self):
-      if not self.table_db.isVisible():
-        return
-      header = self.table_db.horizontalHeader()
-      reserved_space = 80
-      total_width = self.table_db.viewport().width() - reserved_space
-      print(total_width)
+        if not self.table_db.isVisible():
+          return
+        header = self.table_db.horizontalHeader()
+        reserved_space = 80
+        total_width = self.table_db.viewport().width() - reserved_space
 
-      procents_section = {
-        0: 0.1,
-        1: 0.2,
-        2: 0.5,
-        3: 0.1,
-        4: 0.1
-      }
+        procents_section = {
+          0: 0.1,
+          1: 0.2,
+          2: 0.5,
+          3: 0.1,
+          4: 0.1
+        }
 
-      procents_category = {
-        0: 0.1,
-        1: 0.9
-      }
+        procents_category = {
+          0: 0.1,
+          1: 0.9
+        }
 
-      if self.current_table in ['works_categories', 'materials_categories']:
-          for col, procent in procents_category.items():
-            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
-            self.table_db.setColumnWidth(col, int(total_width * procent))
+        if self.current_table in ['works_categories', 'materials_categories']:
+            for col, procent in procents_category.items():
+              header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+              self.table_db.setColumnWidth(col, int(total_width * procent))
 
-      elif self.current_table in ['works', 'materials']:
-          for col, procent in procents_section.items():
-            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
-            self.table_db.setColumnWidth(col, int(total_width * procent))
-      header.setStretchLastSection(False)
+        elif self.current_table in ['works', 'materials']:
+            for col, procent in procents_section.items():
+              header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+              self.table_db.setColumnWidth(col, int(total_width * procent))
+        header.setStretchLastSection(False)
 
     def create_table_estimate(self):
         table_estimate = QTableWidget()
@@ -576,8 +708,6 @@ class MainWindow(QMainWindow):
         table_estimate.setItemDelegate(delegate)
 
         table_estimate.setStyleSheet(TABLE_STYLE)
-
-        print("таблица создана")
 
         return table_estimate
 

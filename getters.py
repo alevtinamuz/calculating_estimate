@@ -54,10 +54,6 @@ def get_category_by_id(supabase, name_of_table: str, id):
     return response.data
 
 def sort_by_id(supabase, name_of_table: str, sort_column):
-    data = []
-    batch_size = 1000
-    for i in range(0, 2500, batch_size):
-        batch = supabase.table(name_of_table).select('*').range(i, i + batch_size - 1).execute()
-        data.extend(batch.data)
+    response = supabase.table(name_of_table).select('*').order(sort_column, desc=False).execute()
     
-    return data
+    return response.data
