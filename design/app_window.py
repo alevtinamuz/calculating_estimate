@@ -1,31 +1,32 @@
 import os
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                            QLabel, QPushButton, QSpacerItem, QSizePolicy,
-                            QTableWidgetItem, QTableWidget, QHeaderView,
-                            QMessageBox, QToolButton, QStackedWidget,
-                            QTabWidget, QComboBox, QLineEdit, QApplication, QDialog, QDialogButtonBox, QMenu, QSpinBox, QStyledItemDelegate,
-                            QDoubleSpinBox, QFormLayout)
-from PyQt6.QtCore import Qt, QEvent, QTimer, QPoint
-from PyQt6.QtGui import QCursor, QMovie
-from supabase import create_client, Client
-from dotenv import load_dotenv
-import setters, getters
-from design.classes import WorkItem, MaterialItem
 
+from PyQt6.QtCore import Qt, QEvent, QTimer
+from PyQt6.QtGui import QCursor, QMovie
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                             QLabel, QPushButton, QSizePolicy,
+                             QTableWidgetItem, QTableWidget, QHeaderView,
+                             QMessageBox, QToolButton, QTabWidget, QComboBox, QLineEdit, QApplication, QDialog,
+                             QDialogButtonBox, QDoubleSpinBox, QFormLayout)
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+import getters
+import setters
+from design.class_ComboBoxDelegate import ComboBoxDelegate
+from design.classes import WorkItem, MaterialItem
 from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, TABLE_STYLE, TOOL_BUTTON_STYLE, TAB_STYLE, \
-    TABLE_SELECTION_LAYOUT_STYLE, COMBO_BOX_STYLE, MENU_STYLE
-from getters import get_materials_by_substr, get_works_by_substr, get_materials_by_category, get_works_by_category
+    TABLE_SELECTION_LAYOUT_STYLE, COMBO_BOX_STYLE
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, supabase):
         super().__init__()
         self.setWindowTitle("Calculating estimate")
         self.setStyleSheet(MAIN_WINDOW_STYLE)
         self.works = []
 
         # Инициализация Supabase
-        self.supabase_init()
+        self.supabase = supabase
 
         # Словарь для хранения кнопок действий
         self.action_buttons = {}
@@ -47,7 +48,8 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.tabs)
 
         # Создаем страницы
-        self.create_page_db()
+        self.page_db = self.create_page_db()
+        self.page_estimate = self.create_page_estimate()
         self.create_page_estimate()
         self.update_buttons_position()
 
@@ -63,8 +65,8 @@ class MainWindow(QMainWindow):
     def create_page_db(self):
         """Создает первую страницу (база данных)"""
 
-        self.page_db = QWidget()
-        layout = QVBoxLayout(self.page_db)
+        page_db = QWidget()
+        layout = QVBoxLayout(page_db)
 
         header_of_widget = self.create_header_of_table()
         layout.addWidget(header_of_widget)
@@ -79,7 +81,9 @@ class MainWindow(QMainWindow):
 
         self.load_data_from_supabase()
 
-        self.page_db.setLayout(layout)
+        page_db.setLayout(layout)
+
+        return page_db
 
     def on_table_changed(self, table_name):
         """Обработчик изменения выбранной таблицы"""
@@ -88,19 +92,19 @@ class MainWindow(QMainWindow):
 
     def create_page_estimate(self):
         """Создает вторую страницу (смета)"""
-        self.page_estimate = QWidget()
+        page_estimate = QWidget()
         layout = QVBoxLayout()
 
         self.label_estimate = QLabel("Страница сметы")
         self.label_estimate.setStyleSheet(LABEL_STYLE)
         layout.addWidget(self.label_estimate)
 
-        # Здесь можно добавить виджеты для работы со сметой
-
         self.table_estimate = self.create_table_estimate()
         layout.addWidget(self.table_estimate)
 
-        self.page_estimate.setLayout(layout)
+        page_estimate.setLayout(layout)
+
+        return page_estimate
 
     def load_data_from_supabase(self):
         """Загружает данные из Supabase и отображает их в таблице"""
@@ -109,8 +113,6 @@ class MainWindow(QMainWindow):
             loading_movie = QMovie(gif_path)
             self.label.setMovie(loading_movie)
             loading_movie.start()
-            # print(loading_movie.isValid())  # Должно быть True
-            # print(loading_movie.frameCount())  # Должно быть > 0
             QApplication.processEvents()
             self.label.setVisible(True)
 
@@ -120,7 +122,8 @@ class MainWindow(QMainWindow):
             if self.current_table in ['works_categories', 'materials_categories']:
                 data = getters.sort_by_id(self.supabase, self.current_table, 'id')  # Для категорий - простая загрузка
             else:
-                data = getters.sort_by_id(self.supabase, self.current_table, 'category_id')  # Для остальных - с сортировкой
+                data = getters.sort_by_id(self.supabase, self.current_table,
+                                          'category_id')  # Для остальных - с сортировкой
 
             if not data:
                 self.label.setText("Нет данных для отображения")
@@ -163,23 +166,13 @@ class MainWindow(QMainWindow):
                 edit_btn = self.create_edit_btn(row_idx)
                 delete_btn = self.create_delete_btn(row_idx)
                 self.action_buttons[row_idx] = (edit_btn, delete_btn)
-                # # Создаем кнопки действий
-                # edit_btn = self.create_edit_btn(row_idx)
-                # delete_btn = self.create_delete_btn(row_idx)
-                #
-                # # Сохраняем ссылки на кнопки
-                # self.action_buttons[row_idx] = (edit_btn, delete_btn)
 
             self.table_db.verticalHeader().setVisible(False)
             self.table_db.setShowGrid(False)
             self.table_db.setFrameShape(QTableWidget.Shape.NoFrame)
 
-            # self.label.setText(f"Загружено {len(data)} записей")
-            # self.label.setText("Данные успешно загружены")
             self.table_db.setStyleSheet(TABLE_STYLE)
 
-
-            from PyQt6.QtCore import QTimer
             self.table_db.viewport().update()
             self.table_db.updateGeometry()
 
@@ -197,29 +190,28 @@ class MainWindow(QMainWindow):
                 self.table_db.viewport().update()
             ])
 
-
         except Exception as e:
             self.label.setText(f"Ошибка загрузки: {str(e)}")
             print('Error:', e)
 
     def finalize_table_setup(self):
-      """Завершающая настройка таблицы после загрузки данных"""
-      try:
-          # Настраиваем размеры колонок
-          self.adjust_column_widths()
+        """Завершающая настройка таблицы после загрузки данных"""
+        try:
+            # Настраиваем размеры колонок
+            self.adjust_column_widths()
 
-          # Теперь показываем таблицу
-          self.table_db.setVisible(True)
+            # Теперь показываем таблицу
+            self.table_db.setVisible(True)
 
-          # Принудительное обновление геометрии
-          self.table_db.viewport().updateGeometry()
-          self.table_db.updateGeometry()
+            # Принудительное обновление геометрии
+            self.table_db.viewport().updateGeometry()
+            self.table_db.updateGeometry()
 
-          print(f"Таблица отображена, ширина: {self.table_db.width()}")
-          print("Данные обновлены")
+            print(f"Таблица отображена, ширина: {self.table_db.width()}")
+            print("Данные обновлены")
 
-      except Exception as e:
-          print(f"Ошибка при настройке таблицы: {str(e)}")
+        except Exception as e:
+            print(f"Ошибка при настройке таблицы: {str(e)}")
 
     def eventFilter(self, source, event):
         """Обработка событий мыши для показа/скрытия кнопок"""
@@ -257,222 +249,224 @@ class MainWindow(QMainWindow):
         return selected[0].row() if selected else -1
 
     def add_row(self, row):
-      """Обработка редактирования строки с формой из нескольких полей"""
-      # Определяем заголовок и текущие значения
-      if self.current_table in ['works', 'materials']:
-          title = "Добавление записи"
-          current_name = "Введите название записи"
-          current_price = 99.99
-          current_unit = "м2"
-          current_category = "Выберите категорию"
-      elif self.current_table in ['works_categories', 'materials_categories']:
-          title = "Добавление категории"
-          current_name = "Введите название категории"
+        """Обработка редактирования строки с формой из нескольких полей"""
+        # Определяем заголовок и текущие значения
+        if self.current_table in ['works', 'materials']:
+            title = "Добавление записи"
+            current_name = "Введите название записи"
+            current_price = 99.99
+            current_unit = "м2"
+            current_category = "Выберите категорию"
+        elif self.current_table in ['works_categories', 'materials_categories']:
+            title = "Добавление категории"
+            current_name = "Введите название категории"
 
-      # Создаем диалоговое окно
-      dialog = QDialog(self)
-      dialog.setWindowTitle(title)
-      dialog.setMinimumWidth(300)
+        # Создаем диалоговое окно
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setMinimumWidth(300)
 
-      # Основной layout
-      main_layout = QVBoxLayout()
+        # Основной layout
+        main_layout = QVBoxLayout()
 
-      # Создаем форму с полями
-      form_layout = QFormLayout()
+        # Создаем форму с полями
+        form_layout = QFormLayout()
 
-      # Поле "Название"
-      name_input = QLineEdit()
-      name_input.setText(current_name)
-      form_layout.addRow("Название:", name_input)
+        # Поле "Название"
+        name_input = QLineEdit()
+        name_input.setText(current_name)
+        form_layout.addRow("Название:", name_input)
 
-      # Поле "Цена" (только для works/materials)
-      if self.current_table in ['works', 'materials']:
-          price_input = QDoubleSpinBox()
-          price_input.setPrefix("₽ ")       # Добавляем символ рубля
-          price_input.setMaximum(9999999999)
-          price_input.setValue(current_price)
-          form_layout.addRow("Цена:", price_input)
-          unit_input = QLineEdit()
-          unit_input.setText(current_unit)
-          form_layout.addRow("Ед. изм.:", unit_input)
-          if self.current_table == 'works':
-            category_combo_work = QComboBox()
-            categories_work = getters.get_all_table(self.supabase, 'works_categories')
-            for category in categories_work:
-              category_combo_work.addItem(category['name'], userData=category['id'])
-            category_combo_work.setCurrentText(current_category)
-            form_layout.addRow("Категория работ:", category_combo_work)
-          if self.current_table == 'materials':
-            category_combo_material = QComboBox()
-            categories_material = getters.get_all_table(self.supabase, 'materials_categories')
-            for category in categories_material:
-              category_combo_material.addItem(category['name'], userData=category['id'])
-            category_combo_material.setCurrentText(current_category)
-            form_layout.addRow("Категория работ:", category_combo_material)
+        # Поле "Цена" (только для works/materials)
+        if self.current_table in ['works', 'materials']:
+            price_input = QDoubleSpinBox()
+            price_input.setPrefix("₽ ")  # Добавляем символ рубля
+            price_input.setMaximum(9999999999)
+            price_input.setValue(current_price)
+            form_layout.addRow("Цена:", price_input)
+            unit_input = QLineEdit()
+            unit_input.setText(current_unit)
+            form_layout.addRow("Ед. изм.:", unit_input)
+            if self.current_table == 'works':
+                category_combo_work = QComboBox()
+                categories_work = getters.get_all_table(self.supabase, 'works_categories')
+                for category in categories_work:
+                    category_combo_work.addItem(category['name'], userData=category['id'])
+                category_combo_work.setCurrentText(current_category)
+                form_layout.addRow("Категория работ:", category_combo_work)
+            if self.current_table == 'materials':
+                category_combo_material = QComboBox()
+                categories_material = getters.get_all_table(self.supabase, 'materials_categories')
+                for category in categories_material:
+                    category_combo_material.addItem(category['name'], userData=category['id'])
+                category_combo_material.setCurrentText(current_category)
+                form_layout.addRow("Категория работ:", category_combo_material)
 
+        main_layout.addLayout(form_layout)
 
-      main_layout.addLayout(form_layout)
+        # Кнопки (Save/Cancel)
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save |
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        main_layout.addWidget(button_box)
 
-      # Кнопки (Save/Cancel)
-      button_box = QDialogButtonBox(
-          QDialogButtonBox.StandardButton.Save |
-          QDialogButtonBox.StandardButton.Cancel
-      )
-      button_box.accepted.connect(dialog.accept)
-      button_box.rejected.connect(dialog.reject)
-      main_layout.addWidget(button_box)
+        dialog.setLayout(main_layout)
 
-      dialog.setLayout(main_layout)
+        # Обработка результата
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_name = name_input.text()
 
-      # Обработка результата
-      if dialog.exec() == QDialog.DialogCode.Accepted:
-          new_name = name_input.text()
+            # Проверка на пустое название
+            if not new_name.strip():
+                QMessageBox.warning(self, "Ошибка", "Название не может быть пустым")
+                return
 
-          # Проверка на пустое название
-          if not new_name.strip():
-              QMessageBox.warning(self, "Ошибка", "Название не может быть пустым")
-              return
+            try:
+                # Добавляем цену для работ/материалов
+                if self.current_table in ['works', 'materials']:
+                    new_price = price_input.value()
+                    new_unit = unit_input.text()
 
-          try:
-              # Добавляем цену для работ/материалов
-              if self.current_table in ['works', 'materials']:
-                  new_price = price_input.value()
-                  new_unit = unit_input.text()
+                # Обновляем данные в Supabase
+                if self.current_table == 'works':
+                    new_category_work = category_combo_work.currentData()
+                    setters.add_work(self.supabase, new_category_work, new_name, new_price, new_unit)
+                elif self.current_table == 'materials':
+                    new_category_material = category_combo_material.currentData()
+                    setters.add_material(self.supabase, new_category_material, new_name, new_price, new_unit)
+                elif self.current_table == 'works_categories':
+                    setters.add_work_category(self.supabase, new_name)
+                elif self.current_table == 'materials_categories':
+                    setters.add_material_category(self.supabase, new_name)
 
-              # Обновляем данные в Supabase
-              if self.current_table == 'works':
-                  new_category_work = category_combo_work.currentData()
-                  setters.add_work(self.supabase, new_category_work, new_name, new_price, new_unit)
-              elif self.current_table == 'materials':
-                  new_category_material = category_combo_material.currentData()
-                  setters.add_material(self.supabase, new_category_material, new_name, new_price, new_unit)
-              elif self.current_table == 'works_categories':
-                  setters.add_work_category(self.supabase, new_name)
-              elif self.current_table == 'materials_categories':
-                  setters.add_material_category(self.supabase, new_name)
+                # Обновляем таблицу
+                self.load_data_from_supabase()
+                QMessageBox.information(self, "Успех", "Данные успешно обновлены!")
 
-              # Обновляем таблицу
-              self.load_data_from_supabase()
-              QMessageBox.information(self, "Успех", "Данные успешно обновлены!")
-
-          except Exception as e:
-              QMessageBox.critical(self, "Ошибка", f"Не удалось обновить запись: {str(e)}")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось обновить запись: {str(e)}")
 
     def edit_row(self, row):
-      """Обработка редактирования строки с формой из нескольких полей"""
-      record_id = self.table_db.item(row, 0).text()
+        """Обработка редактирования строки с формой из нескольких полей"""
+        global new_price, new_unit, category_combo_material, category_combo_work, price_input, unit_input, current_category, current_unit, current_price, current_name, title
+        record_id = self.table_db.item(row, 0).text()
 
-      # Определяем заголовок и текущие значения
-      if self.current_table in ['works', 'materials']:
-          title = "Редактирование записи"
-          current_name = self.table_db.item(row, 2).text()  # Название
-          current_price = float(self.table_db.item(row, 3).text())  # Цена
-          current_unit = self.table_db.item(row, 4).text()
-          # Получаем оригинальный ID категории из UserRole
-          current_category = self.table_db.item(row, 1).data(Qt.ItemDataRole.UserRole)
-      elif self.current_table in ['works_categories', 'materials_categories']:
-          title = "Редактирование категории"
-          current_name = self.table_db.item(row, 1).text()  # Название категории
+        # Определяем заголовок и текущие значения
+        if self.current_table in ['works', 'materials']:
+            title = "Редактирование записи"
+            current_name = self.table_db.item(row, 2).text()  # Название
+            current_price = float(self.table_db.item(row, 3).text())  # Цена
+            current_unit = self.table_db.item(row, 4).text()
+            # Получаем оригинальный ID категории из UserRole
+            current_category = self.table_db.item(row, 1).data(Qt.ItemDataRole.UserRole)
+        elif self.current_table in ['works_categories', 'materials_categories']:
+            title = "Редактирование категории"
+            current_name = self.table_db.item(row, 1).text()  # Название категории
 
-      # Создаем диалоговое окно
-      dialog = QDialog(self)
-      dialog.setWindowTitle(title)
-      dialog.setMinimumWidth(300)
+        # Создаем диалоговое окно
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setMinimumWidth(300)
 
-      # Основной layout
-      main_layout = QVBoxLayout()
+        # Основной layout
+        main_layout = QVBoxLayout()
 
-      # Создаем форму с полями
-      form_layout = QFormLayout()
+        # Создаем форму с полями
+        form_layout = QFormLayout()
 
-      # Поле "Название"
-      name_input = QLineEdit()
-      name_input.setText(current_name)
-      form_layout.addRow("Название:", name_input)
+        # Поле "Название"
+        name_input = QLineEdit()
+        name_input.setText(current_name)
+        form_layout.addRow("Название:", name_input)
 
-      # Поле "Цена" (только для works/materials)
-      if self.current_table in ['works', 'materials']:
-          price_input = QDoubleSpinBox()
-          price_input.setPrefix("₽ ")       # Добавляем символ рубля
-          price_input.setMaximum(9999999999)
-          price_input.setValue(current_price)
-          form_layout.addRow("Цена:", price_input)
-          unit_input = QLineEdit()
-          unit_input.setText(current_unit)
-          form_layout.addRow("Ед. изм.:", unit_input)
-          if self.current_table == 'works':
-            category_combo_work = QComboBox()
-            categories_work = getters.get_all_table(self.supabase, 'works_categories')
-            for category in categories_work:
-              category_combo_work.addItem(category['name'], userData=category['id'])
-            current_category_name_work = getters.get_entity_by_id(self.supabase, 'works_categories', current_category)
-            category_combo_work.setCurrentText(current_category_name_work[0]['name'])
-            form_layout.addRow("Категория работ:", category_combo_work)
-          if self.current_table == 'materials':
-            category_combo_material = QComboBox()
-            categories_material = getters.get_all_table(self.supabase, 'materials_categories')
-            for category in categories_material:
-              category_combo_material.addItem(category['name'], userData=category['id'])
-            current_category_name_material = getters.get_entity_by_id(self.supabase, 'materials_categories', current_category)
-            category_combo_material.setCurrentText(current_category_name_material[0]['name'])
-            form_layout.addRow("Категория работ:", category_combo_material)
+        # Поле "Цена" (только для works/materials)
+        if self.current_table in ['works', 'materials']:
+            price_input = QDoubleSpinBox()
+            price_input.setPrefix("₽ ")  # Добавляем символ рубля
+            price_input.setMaximum(9999999999)
+            price_input.setValue(current_price)
+            form_layout.addRow("Цена:", price_input)
+            unit_input = QLineEdit()
+            unit_input.setText(current_unit)
+            form_layout.addRow("Ед. изм.:", unit_input)
+            if self.current_table == 'works':
+                category_combo_work = QComboBox()
+                categories_work = getters.get_all_table(self.supabase, 'works_categories')
+                for category in categories_work:
+                    category_combo_work.addItem(category['name'], userData=category['id'])
+                current_category_name_work = getters.get_entity_by_id(self.supabase, 'works_categories',
+                                                                      current_category)
+                category_combo_work.setCurrentText(current_category_name_work[0]['name'])
+                form_layout.addRow("Категория работ:", category_combo_work)
+            if self.current_table == 'materials':
+                category_combo_material = QComboBox()
+                categories_material = getters.get_all_table(self.supabase, 'materials_categories')
+                for category in categories_material:
+                    category_combo_material.addItem(category['name'], userData=category['id'])
+                current_category_name_material = getters.get_entity_by_id(self.supabase, 'materials_categories',
+                                                                          current_category)
+                category_combo_material.setCurrentText(current_category_name_material[0]['name'])
+                form_layout.addRow("Категория работ:", category_combo_material)
 
+        main_layout.addLayout(form_layout)
 
-      main_layout.addLayout(form_layout)
+        # Кнопки (Save/Cancel)
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save |
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        main_layout.addWidget(button_box)
 
-      # Кнопки (Save/Cancel)
-      button_box = QDialogButtonBox(
-          QDialogButtonBox.StandardButton.Save |
-          QDialogButtonBox.StandardButton.Cancel
-      )
-      button_box.accepted.connect(dialog.accept)
-      button_box.rejected.connect(dialog.reject)
-      main_layout.addWidget(button_box)
+        dialog.setLayout(main_layout)
 
-      dialog.setLayout(main_layout)
+        # Обработка результата
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_name = name_input.text()
 
-      # Обработка результата
-      if dialog.exec() == QDialog.DialogCode.Accepted:
-          new_name = name_input.text()
+            # Проверка на пустое название
+            if not new_name.strip():
+                QMessageBox.warning(self, "Ошибка", "Название не может быть пустым")
+                return
 
-          # Проверка на пустое название
-          if not new_name.strip():
-              QMessageBox.warning(self, "Ошибка", "Название не может быть пустым")
-              return
+            try:
+                # Добавляем цену для работ/материалов
+                if self.current_table in ['works', 'materials']:
+                    new_price = price_input.value()
+                    new_unit = unit_input.text()
 
-          try:
-              # Добавляем цену для работ/материалов
-              if self.current_table in ['works', 'materials']:
-                  new_price = price_input.value()
-                  new_unit = unit_input.text()
+                # Обновляем данные в Supabase
+                if self.current_table == 'works':
+                    new_category_work = category_combo_work.currentData()
+                    setters.update_name_of_work(self.supabase, record_id, new_name)
+                    setters.update_price_of_work(self.supabase, record_id, new_price)
+                    setters.update_unit_of_works(self.supabase, record_id, new_unit)
+                    setters.update_category_id_of_work(self.supabase, record_id, new_category_work)
+                elif self.current_table == 'materials':
+                    new_category_material = category_combo_material.currentData()
+                    setters.update_name_of_materials(self.supabase, record_id, new_name)
+                    setters.update_price_of_material(self.supabase, record_id, new_price)
+                    setters.update_unit_of_materials(self.supabase, record_id, new_unit)
+                    setters.update_category_id_of_material(self.supabase, record_id, new_category_material)
+                elif self.current_table == 'works_categories':
+                    setters.update_name_work_category(self.supabase, record_id, new_name)
+                elif self.current_table == 'materials_categories':
+                    setters.update_name_material_category(self.supabase, record_id, new_name)
 
-              # Обновляем данные в Supabase
-              if self.current_table == 'works':
-                  new_category_work = category_combo_work.currentData()
-                  setters.update_name_of_work(self.supabase, record_id, new_name)
-                  setters.update_price_of_work(self.supabase, record_id, new_price)
-                  setters.update_unit_of_works(self.supabase, record_id, new_unit)
-                  setters.update_category_id_of_work(self.supabase, record_id, new_category_work)
-              elif self.current_table == 'materials':
-                  new_category_material = category_combo_material.currentData()
-                  setters.update_name_of_materials(self.supabase, record_id, new_name)
-                  setters.update_price_of_material(self.supabase, record_id, new_price)
-                  setters.update_unit_of_materials(self.supabase, record_id, new_unit)
-                  setters.update_category_id_of_material(self.supabase, record_id, new_category_material)
-              elif self.current_table == 'works_categories':
-                  setters.update_name_work_category(self.supabase, record_id, new_name)
-              elif self.current_table == 'materials_categories':
-                  setters.update_name_material_category(self.supabase, record_id, new_name)
+                # Обновляем таблицу
+                self.load_data_from_supabase()
+                QMessageBox.information(self, "Успех", "Данные успешно обновлены!")
 
-              # Обновляем таблицу
-              self.load_data_from_supabase()
-              QMessageBox.information(self, "Успех", "Данные успешно обновлены!")
-
-          except Exception as e:
-              QMessageBox.critical(self, "Ошибка", f"Не удалось обновить запись: {str(e)}")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось обновить запись: {str(e)}")
 
     def delete_row(self, row):
         """Обработка удаления строки"""
+        global reply
         record_id = self.table_db.item(row, 0).text()
 
         if self.current_table in ['works', 'materials']:
@@ -606,23 +600,15 @@ class MainWindow(QMainWindow):
         edit_btn.show()
         delete_btn.show()
 
-    def supabase_init(self):
-        load_dotenv()
-        self.supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY")
-        )
-
     def create_table_selector(self):
         # Создаем выпадающий список для выбора таблицы
-        self.table_selector = QComboBox()
-        self.table_selector.setStyleSheet(COMBO_BOX_STYLE)  # Применяем стиль
-        self.table_selector.addItems(["works", "works_categories", "materials", "materials_categories"])
-        self.table_selector.setCurrentText(self.current_table)
-        self.table_selector.currentTextChanged.connect(self.on_table_changed)
+        table_selector = QComboBox()
+        table_selector.setStyleSheet(COMBO_BOX_STYLE)  # Применяем стиль
+        table_selector.addItems(["works", "works_categories", "materials", "materials_categories"])
+        table_selector.setCurrentText(self.current_table)
+        table_selector.currentTextChanged.connect(self.on_table_changed)
 
-        return self.table_selector
-
+        return table_selector
 
     def create_header_of_table(self):
         """Создает фиксированный заголовок таблицы"""
@@ -664,43 +650,43 @@ class MainWindow(QMainWindow):
 
     def adjust_column_widths(self):
         if not self.table_db.isVisible():
-          return
+            return
         header = self.table_db.horizontalHeader()
         reserved_space = 80
         total_width = self.table_db.viewport().width() - reserved_space
 
-        procents_section = {
-          0: 0.1,
-          1: 0.2,
-          2: 0.5,
-          3: 0.1,
-          4: 0.1
+        percents_section = {
+            0: 0.1,
+            1: 0.2,
+            2: 0.5,
+            3: 0.1,
+            4: 0.1
         }
 
-        procents_category = {
-          0: 0.1,
-          1: 0.9
+        percents_category = {
+            0: 0.1,
+            1: 0.9
         }
 
         if self.current_table in ['works_categories', 'materials_categories']:
-            for col, procent in procents_category.items():
-              header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
-              self.table_db.setColumnWidth(col, int(total_width * procent))
+            for col, percent in percents_category.items():
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+                self.table_db.setColumnWidth(col, int(total_width * percent))
 
         elif self.current_table in ['works', 'materials']:
-            for col, procent in procents_section.items():
-              header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
-              self.table_db.setColumnWidth(col, int(total_width * procent))
+            for col, percent in percents_section.items():
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+                self.table_db.setColumnWidth(col, int(total_width * percent))
         header.setStretchLastSection(False)
 
     def create_table_estimate(self):
         try:
-            self.estimate_container = QWidget()
-            layout = QVBoxLayout(self.estimate_container)
+            estimate_container = QWidget()
+            layout = QVBoxLayout(estimate_container)
 
             # Создаем таблицу как атрибут класса
             self.table_estimate = QTableWidget()
-            self.table_estimate.setObjectName("estimateTable")  # Для отладки
+            self.table_estimate.setObjectName("estimateTable")
 
             # Настройки таблицы
             self.table_estimate.setStyleSheet(TABLE_STYLE)
@@ -715,38 +701,38 @@ class MainWindow(QMainWindow):
             # Заголовки
             headers = [
                 "№ п/п", "Наименование работ и затрат", "Ед. изм.", "К-во",
-                "Фактический ФОТ на ед.", "ФОТ всего", "Наименование материалов",
-                "Ед. изм.", "К-во", "Цена", "Сумма", "Всего"
+                "Фактический ФОТ на ед., руб", "ФОТ всего, руб", "Наименование материалов",
+                "Ед. изм.", "К-во", "Цена, руб", "Сумма, руб", "Всего, руб"
             ]
             self.table_estimate.setColumnCount(len(headers))
             self.table_estimate.setHorizontalHeaderLabels(headers)
             self.table_estimate.setRowCount(0)  # Начальная строка
 
             # Делегат
-            self.delegate = ComboBoxDelegate(self.table_estimate, self.supabase, self)
-            self.table_estimate.setItemDelegate(self.delegate)
+            delegate = ComboBoxDelegate(self.table_estimate, self.supabase, self)
+            self.table_estimate.setItemDelegate(delegate)
 
             layout.addWidget(self.table_estimate)
 
             button_layout = QHBoxLayout()
 
-            self.add_work_button = QPushButton("Добавить работу")
-            self.add_work_button.clicked.connect(lambda: self.add_row_to_estimate(is_work=True))
-            self.add_work_button.setStyleSheet(BUTTON_STYLE)
+            add_work_button = QPushButton("Добавить работу")
+            add_work_button.clicked.connect(lambda: self.add_row_to_estimate(is_work=True))
+            add_work_button.setStyleSheet(BUTTON_STYLE)
 
-            self.add_material_button = QPushButton("Добавить материал")
-            self.add_material_button.clicked.connect(lambda: self.add_row_to_estimate(is_work=False))
-            self.add_material_button.setStyleSheet(BUTTON_STYLE)
+            add_material_button = QPushButton("Добавить материал")
+            add_material_button.clicked.connect(lambda: self.add_row_to_estimate(is_work=False))
+            add_material_button.setStyleSheet(BUTTON_STYLE)
 
-            button_layout.addWidget(self.add_work_button)
-            button_layout.addWidget(self.add_material_button)
+            button_layout.addWidget(add_work_button)
+            button_layout.addWidget(add_material_button)
 
             layout.addLayout(button_layout)
 
-            self.estimate_container.setLayout(layout)
+            estimate_container.setLayout(layout)
 
             print("Таблица успешно создана")
-            return self.estimate_container
+            return estimate_container
 
         except Exception as e:
             print(f"Ошибка создания таблицы: {e}")
@@ -818,208 +804,3 @@ class MainWindow(QMainWindow):
                 return row
             row -= 1
         return material_row
-
-
-class ComboBoxDelegate(QStyledItemDelegate):
-    def __init__(self, parent, supabase, main_window):
-        super().__init__(parent)
-        self.supabase = supabase
-        self.current_editor = None
-        self.current_row = -1
-        self.current_col = -1
-        self.editor_pos_offset = QPoint(-70, 0)
-        self.main_window = main_window
-
-        load_dotenv()
-        self.supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY")
-        )
-
-    def createEditor(self, parent, option, index):
-        self.current_row = index.row()
-        self.current_col = index.column()
-
-        if index.column() in [1, 6]:
-            try:
-                editor = QWidget(parent, Qt.WindowType.Popup)
-                editor.setWindowFlag(Qt.WindowType.FramelessWindowHint)
-                editor.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-                editor.setStyleSheet(COMBO_BOX_STYLE)
-
-                layout = QHBoxLayout(editor)
-                layout.setContentsMargins(2, 2, 2, 2)
-
-                # Ваши комбобоксы
-                self.main_combo = QComboBox(editor)
-                self.sub_combo = QComboBox(editor)
-
-                self.main_combo.currentIndexChanged.connect(self.update_sub_combo)
-
-                layout.addWidget(self.main_combo)
-                layout.addWidget(self.sub_combo)
-
-                # Заполнение данными
-                self.load_initial_data(index.column())
-
-                # Позиционирование при создании
-                self.adjust_editor_position(editor, parent, index)
-
-                self.current_editor = editor
-                return editor
-
-            except Exception as e:
-                print(f"Editor error: {e}")
-                return super().createEditor(parent, option, index)
-
-        elif index.column() in [3, 8]:  # Ячейки с количеством
-            editor = QSpinBox(parent)
-            editor.setMinimum(0)
-            editor.setMaximum(999999)
-
-            return editor
-
-    def adjust_editor_position(self, editor, parent, index):
-        """Безопасное позиционирование редактора"""
-        try:
-            table = parent.parent()  # Получаем таблицу из viewport
-            if not table:
-                return
-
-            rect = table.visualRect(index)
-            global_pos = table.viewport().mapToGlobal(rect.bottomLeft())
-
-            # Применяем смещение
-            editor.move(global_pos + self.editor_pos_offset)
-            editor.resize(max(rect.width(), 300), editor.sizeHint().height())
-
-        except Exception as e:
-            print(f"Positioning error: {e}")
-
-    def updateEditorGeometry(self, editor, option, index):
-        """Упрощенная версия без рекурсии"""
-        if index.column() in [1, 6]:
-            try:
-                # Используем абсолютные координаты
-                rect = option.rect
-                global_pos = editor.parent().mapToGlobal(rect.bottomLeft())
-                editor.move(global_pos + self.editor_pos_offset)
-                editor.resize(max(rect.width(), 300), editor.sizeHint().height())
-            except:
-                super().updateEditorGeometry(editor, option, index)
-        else:
-            super().updateEditorGeometry(editor, option, index)
-
-    def load_initial_data(self, column):
-        """Загрузка начальных данных в комбобоксы"""
-        entity_type = "works" if column == 1 else "materials"
-        try:
-            categories = self.supabase.table(f"{entity_type}_categories").select('*').execute().data
-            self.main_combo.clear()
-            for cat in categories:
-                self.main_combo.addItem(cat['name'], cat['id'])
-
-            # Загружаем подчиненные элементы
-            self.update_sub_combo()
-
-        except Exception as e:
-            print(f"Data loading error: {e}")
-
-    def update_sub_combo(self):
-        """Обновление подчиненного комбобокса"""
-        if hasattr(self, 'main_combo') and self.main_combo.count() > 0:
-            cat_id = self.main_combo.currentData()
-            entity_type = "works" if self.current_col == 1 else "materials"
-
-            try:
-                items = self.supabase.table(entity_type) \
-                    .select('*') \
-                    .eq('category_id', cat_id) \
-                    .execute().data
-
-                self.sub_combo.clear()
-                for item in items:
-                    self.sub_combo.addItem(item['name'], item['id'])
-
-            except Exception as e:
-                print(f"Sub-combo update error: {e}")
-
-    def setModelData(self, editor, model, index):
-        """Сохраняет выбранное значение в модель"""
-        if index.column() in [1, 6]:  # Обрабатываем только колонки с названиями
-            selected_id = self.sub_combo.currentData()
-            selected_text = self.sub_combo.currentText()
-            model.setData(index, selected_text)
-
-            try:
-                # Определяем тип сущности (работа или материал)
-                entity_type = "works" if index.column() == 1 else "materials"
-                entities = getters.get_entity_by_id(self.supabase, entity_type, selected_id)
-
-                if not entities:
-                    print(f"Не найдена сущность с ID: {selected_id}")
-                    return
-
-                entity = entities[0]
-
-                if index.column() == 1:  # Обработка работы
-                    # Проверяем и расширяем список работ при необходимости
-                    while index.row() >= len(self.main_window.works):
-                        self.main_window.works.append(WorkItem())
-
-                    work = self.main_window.works[index.row()]
-                    work.name = selected_text
-                    work.unit = entity['unit']
-
-                    # Обновляем ячейки цены и единиц измерения
-                    price_index = model.index(index.row(), 4)
-                    model.setData(price_index, entity['price'])
-
-                    unit_index = model.index(index.row(), 2)
-                    model.setData(unit_index, entity['unit'])
-
-                elif index.column() == 6:  # Обработка материала
-                    # Находим родительскую работу для этого материала
-                    work_row = index.row()
-                    while work_row >= 0 and not model.index(work_row, 0).data():
-                        work_row -= 1
-
-                    if work_row >= 0:
-                        # Проверяем границы списка работ
-                        if work_row >= len(self.main_window.works):
-                            # Добавляем новую работу, если не существует
-                            self.main_window.works.append(WorkItem())
-
-                        # Добавляем новый материал к работе
-                        material = MaterialItem()
-                        material.name = selected_text
-                        material.unit = entity['unit']
-                        material.price = entity['price']
-
-                        self.main_window.works[work_row].materials.append(material)
-
-                        # Обновляем ячейки цены и единиц измерения материала
-                        price_index = model.index(index.row(), 9)
-                        model.setData(price_index, entity['price'])
-
-                        unit_index = model.index(index.row(), 7)
-                        model.setData(unit_index, entity['unit'])
-
-            except IndexError as ie:
-                print(f"Ошибка индекса при обновлении данных: {ie}")
-            except Exception as e:
-                print(f"Не удалось обновить данные: {e}")
-
-        elif index.column() in [3, 8]:  # Для ячеек с количеством
-            try:
-                value = editor.value()
-                model.setData(index, value)
-            except Exception as e:
-                print(f"Не удалось обновить количество: {e}")
-
-    def destroyEditor(self, editor, index):
-        """Очищаем ссылки при уничтожении редактора"""
-        self.current_editor = None
-        self.main_combo = None
-        self.sub_combo = None
-        super().destroyEditor(editor, index)

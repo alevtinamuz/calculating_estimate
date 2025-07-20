@@ -24,7 +24,7 @@ getters.get_materials_by_substr(supabase, substr)
 
 app = QApplication(sys.argv)
 
-window = MainWindow()
+window = MainWindow(supabase)
 window.show()  # Хотя showFullScreen() уже вызван в классе
 
 sys.exit(app.exec())
