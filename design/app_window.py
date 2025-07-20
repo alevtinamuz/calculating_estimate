@@ -295,7 +295,7 @@ class MainWindow(QMainWindow):
             categories_work = getters.get_all_table(self.supabase, 'works_categories')
             for category in categories_work:
               category_combo_work.addItem(category['name'], userData=category['id'])
-            current_category_name_work = getters.get_category_by_id(self.supabase, 'works_categories', current_category)
+            current_category_name_work = getters.get_entity_by_id(self.supabase, 'works_categories', current_category)
             category_combo_work.setCurrentText(current_category_name_work[0]['name'])
             form_layout.addRow("Категория работ:", category_combo_work)
           if self.current_table == 'materials':
@@ -303,7 +303,7 @@ class MainWindow(QMainWindow):
             categories_material = getters.get_all_table(self.supabase, 'materials_categories')
             for category in categories_material:
               category_combo_material.addItem(category['name'], userData=category['id'])
-            current_category_name_material = getters.get_category_by_id(self.supabase, 'materials_categories', current_category)
+            current_category_name_material = getters.get_entity_by_id(self.supabase, 'materials_categories', current_category)
             category_combo_material.setCurrentText(current_category_name_material[0]['name'])
             form_layout.addRow("Категория работ:", category_combo_material)
 
@@ -553,33 +553,65 @@ class MainWindow(QMainWindow):
       header.setStretchLastSection(False)
 
     def create_table_estimate(self):
-        table_estimate = QTableWidget()
-        table_estimate.setStyleSheet(TABLE_STYLE)
-        table_estimate.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked | QTableWidget.EditTrigger.EditKeyPressed)
-        table_estimate.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table_estimate.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        table_estimate.setMouseTracking(True)
-        table_estimate.viewport().installEventFilter(self)
-        table_estimate.itemSelectionChanged.connect(self.on_row_selected)
+        try:
+            self.estimate_container = QWidget()
+            layout = QVBoxLayout(self.estimate_container)
 
-        headers = [
-            "№ п/п", "Наименование работ и затрат", "Ед. изм.", "К-во",
-            "Фактический ФОТ на ед.", "ФОТ всего", "Наименование материалов",
-            "Ед. изм.", "К-во", "Цена", "Сумма", "Всего"
-        ]
-        table_estimate.setColumnCount(len(headers))
-        table_estimate.setHorizontalHeaderLabels(headers)
-        table_estimate.setRowCount(1)
+            # Создаем таблицу как атрибут класса
+            self.table_estimate = QTableWidget()
+            self.table_estimate.setObjectName("estimateTable")  # Для отладки
 
-        # Устанавливаем делегат для ячеек
-        delegate = ComboBoxDelegate(table_estimate, self.supabase)
-        table_estimate.setItemDelegate(delegate)
+            # Настройки таблицы
+            self.table_estimate.setStyleSheet(TABLE_STYLE)
+            self.table_estimate.setEditTriggers(
+                QTableWidget.EditTrigger.DoubleClicked |
+                QTableWidget.EditTrigger.EditKeyPressed
+            )
+            self.table_estimate.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+            self.table_estimate.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
 
-        table_estimate.setStyleSheet(TABLE_STYLE)
+            # Заголовки
+            headers = [
+                "№ п/п", "Наименование работ и затрат", "Ед. изм.", "К-во",
+                "Фактический ФОТ на ед.", "ФОТ всего", "Наименование материалов",
+                "Ед. изм.", "К-во", "Цена", "Сумма", "Всего"
+            ]
+            self.table_estimate.setColumnCount(len(headers))
+            self.table_estimate.setHorizontalHeaderLabels(headers)
+            self.table_estimate.setRowCount(1)  # Начальная строка
 
-        print("таблица создана")
+            # Делегат
+            self.delegate = ComboBoxDelegate(self.table_estimate, self.supabase)
+            self.table_estimate.setItemDelegate(self.delegate)
 
-        return table_estimate
+            # Кнопка добавления строки
+            self.add_row_button = QPushButton("Добавить строку")
+            self.add_row_button.setStyleSheet(BUTTON_STYLE)
+            self.add_row_button.clicked.connect(self.add_row_to_estimate)
+
+            # Компоновка
+            layout.addWidget(self.table_estimate)
+            layout.addWidget(self.add_row_button)
+
+            # container = QWidget()
+            self.estimate_container.setLayout(layout)
+
+            print("Таблица успешно создана")
+            return self.estimate_container
+
+        except Exception as e:
+            print(f"Ошибка создания таблицы: {e}")
+            raise
+
+    def add_row_to_estimate(self):
+        try:
+            # Теперь обращаемся напрямую к таблице
+            table = self.findChild(QTableWidget, "estimateTable")
+            if table:
+                table.insertRow(table.rowCount())
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось добавить строку: {str(e)}")
 
 
 class ComboBoxDelegate(QStyledItemDelegate):
@@ -591,7 +623,16 @@ class ComboBoxDelegate(QStyledItemDelegate):
         self.current_col = -1
         self.editor_pos_offset = QPoint(-70, 0)
 
+        load_dotenv()
+        self.supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_KEY")
+        )
+
     def createEditor(self, parent, option, index):
+        self.current_row = index.row()
+        self.current_col = index.column()
+
         if index.column() in [1, 6]:
             try:
                 editor = QWidget(parent, Qt.WindowType.Popup)
@@ -605,6 +646,9 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 # Ваши комбобоксы
                 self.main_combo = QComboBox(editor)
                 self.sub_combo = QComboBox(editor)
+
+                self.main_combo.currentIndexChanged.connect(self.update_sub_combo)
+
                 layout.addWidget(self.main_combo)
                 layout.addWidget(self.sub_combo)
 
@@ -693,28 +737,26 @@ class ComboBoxDelegate(QStyledItemDelegate):
             except Exception as e:
                 print(f"Sub-combo update error: {e}")
 
-    def on_work_selected(self, index):
-        """Обрабатывает выбор конкретной работы/материала"""
-        if index >= 0:
-            selected_text = self.sub_combo.currentText()
-            self.commitData.emit(self.current_editor)  # Важно для сохранения данных
-
-            # Устанавливаем значение в таблицу
-            table = self.parent()
-            item = table.item(self.current_row, self.current_col)
-            if item is None:
-                item = QTableWidgetItem(selected_text)
-                table.setItem(self.current_row, self.current_col, item)
-            else:
-                item.setText(selected_text)
-
-            print(f"Выбрано: {selected_text}")
-
     def setModelData(self, editor, model, index):
         """Сохраняет выбранное значение в модель"""
         if index.column() in [1, 6]:
+            selected_id = self.sub_combo.currentData()
             selected_text = self.sub_combo.currentText()
+            print(selected_id, 'text')
             model.setData(index, selected_text)
+
+            table_name = "works" if index.column() == 1 else "materials"
+
+            entity = getters.get_entity_by_id(self.supabase, table_name, selected_id)[0]
+
+            print(entity)
+
+            price_index = model.index(index.row(), 4) if index.column() == 1 else model.index(index.row(), 9)
+            model.setData(price_index, entity['price'])
+
+            unit_index = model.index(index.row(), 2) if index.column() == 1 else model.index(index.row(), 7)
+            model.setData(unit_index, entity['unit'])
+
         elif index.column() in [3, 8]:  # Для ячеек с количеством
             # Получаем значение из QSpinBox и сохраняем в модель
             value = editor.value()

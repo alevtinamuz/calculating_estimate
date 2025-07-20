@@ -43,15 +43,20 @@ def get_works_by_substr(supabase, substr):
 
     return response.data
 
+
 def get_all_table(supabase, name_of_table: str):
     response = supabase.table(name_of_table).select('*').execute()
     
     return response.data
 
-def get_category_by_id(supabase, name_of_table: str, id):
-    response = supabase.table(name_of_table).select('*').eq('id', id).execute()
+
+def get_entity_by_id(supabase, name_of_table: str, entity_id: int):
+
+    print(entity_id)
+    response = supabase.table(name_of_table).select('*').eq('id', entity_id).execute()
     
     return response.data
+
 
 def sort_by_id(supabase, name_of_table: str, sort_column):
     data = []
