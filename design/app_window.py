@@ -25,15 +25,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Calculating estimate")
         self.setStyleSheet(MAIN_WINDOW_STYLE)
-        # self.works = []
 
         # Инициализация Supabase
         self.supabase = supabase
-
-        # Словарь для хранения кнопок действий
-        # self.action_buttons = {}
-        # self.current_hovered_row = -1
-        # self.current_table = 'works'
 
         # Центральный виджет
         central_widget = QWidget()
@@ -50,12 +44,8 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.tabs)
 
         # Создаем страницы
-        # self.page_db = self.create_page_db()
         self.page_db = PageDB(supabase).create_page_db()
-
-        # self.page_estimate = self.create_page_estimate()
         self.page_estimate = PageEstimate(supabase).create_page_estimate()
-        # self.update_buttons_position()
 
         # Добавляем страницы во вкладки
         self.tabs.addTab(self.page_db, "База данных")
