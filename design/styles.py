@@ -1,5 +1,3 @@
-from PyQt6.QtGui import QColor
-
 # Стили для главного окна
 MAIN_WINDOW_STYLE = """
     QWidget {
@@ -10,8 +8,8 @@ MAIN_WINDOW_STYLE = """
 # Стили для метки
 LABEL_STYLE = """
     QLabel {
-        color: red;
-        font-size: 48px;
+        color: black;
+        font-size: 24px;
         qproperty-alignment: AlignCenter;
     }
 """
