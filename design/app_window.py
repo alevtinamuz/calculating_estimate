@@ -800,11 +800,6 @@ class MainWindow(QMainWindow):
                 for col in range(6):  # Колонки 0-5
                     table.setSpan(work_row, col, row_count - work_row + 1, 1)  # Объединяем по вертикали
 
-                    # Делаем объединенные ячейки нередактируемыми
-                    if col > 0:  # Колонка 0 уже нередактируемая
-                        item = table.item(work_row, col)
-                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-
                 # Заполняем ячейки материала
                 for col in range(6, table.columnCount()):
                     item = QTableWidgetItem("")
