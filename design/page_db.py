@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel, QHeaderVi
 import getters
 import setters
 from design.styles import LABEL_STYLE, TOOL_PANEL_STYLE, DROPDOWN_STYLE, DATA_TABLE_STYLE, PRIMARY_BUTTON_STYLE, \
-    ACTION_BUTTONS_STYLE
+    ACTION_BUTTONS_STYLE, SEARCH_STYLE
 
 
 class PageDB(QMainWindow):
@@ -151,7 +151,7 @@ class PageDB(QMainWindow):
             for btn in buttons:
                 btn.hide()
 
-    def add_row(self, row):
+    def add_row(self):
         """Обработка редактирования строки с формой из нескольких полей"""
         # Определяем заголовок и текущие значения
         if self.current_table in ['works', 'materials']:
@@ -432,7 +432,6 @@ class PageDB(QMainWindow):
         # Кнопка загрузки данных
         refresh_button = QPushButton("Обновить данные")
         refresh_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
-        # refresh_button.setFixedSize(150, 30)
         refresh_button.clicked.connect(self.load_data_from_supabase)
 
         return refresh_button
@@ -440,11 +439,51 @@ class PageDB(QMainWindow):
     def create_add_button(self, row_idx=None):
         add_button = QPushButton("Добавить данные")
         add_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
-        # add_button.setFixedSize(150, 30)
-        # add_button.setToolTip("Добавить данные")
         add_button.clicked.connect(lambda _, r=row_idx: self.add_row(r))
 
         return add_button
+
+    def create_search_widget(self):
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Поиск по названию и категории...")
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.setStyleSheet(SEARCH_STYLE)
+        self.search_input.textChanged.connect(self.perform_search)
+        
+        return self.search_input
+
+    def perform_search(self):
+        CATEGORY_COLUMN = 1
+        NAME_COLUMN = 2
+        
+        search_text = self.search_input.text().strip().lower()
+        search_words = search_text.split()
+
+        if not search_text:
+            for row in range(self.table_db.rowCount()):
+                self.table_db.setRowHidden(row, False)
+            return
+        
+        for row in range(self.table_db.rowCount()):
+            category_text = ""
+            name_text = ""
+            
+            category_item = self.table_db.item(row, CATEGORY_COLUMN)
+            if category_item:
+                category_text = category_item.text().lower()
+            
+            name_item = self.table_db.item(row, NAME_COLUMN)
+            if name_item:
+                name_text = name_item.text().lower()
+            
+            # Объединяем текст из обеих колонок для поиска
+            combined_text = f"{category_text} {name_text}"
+            
+            # Проверяем, что все слова поиска присутствуют в объединенном тексте
+            match_found = all(word in combined_text for word in search_words)
+            
+            # Скрываем/показываем строку
+            self.table_db.setRowHidden(row, not match_found)
 
     def create_table_db(self):
         table_db = QTableWidget()
@@ -533,6 +572,9 @@ class PageDB(QMainWindow):
         table_selector = self.create_table_selector()
         table_selector.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         main_layout.addWidget(table_selector)
+        
+        search_widget = self.create_search_widget()
+        main_layout.addWidget(search_widget)
 
         # Растягивающийся элемент между комбобоксом и кнопкой
         main_layout.addStretch()

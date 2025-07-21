@@ -90,6 +90,27 @@ DATA_TABLE_STYLE = f"""
     }}
 """
 
+SEARCH_STYLE = f"""
+    QLineEdit {{
+        background-color: {WHITE};
+        color: {BLACK};
+        border: 2px solid {DARK_GRAY};
+        border-radius: 4px;
+        min-height: 30px;
+        font-size: 14px;
+        min-width: 200px;
+    }}
+    
+    QLineEdit:hover {{
+        background-color: {LIGHT_GRAY};
+    }}
+    
+    QLineEdit::placeholder {{
+        color: {DARK_GRAY};
+        font-style: italic;
+    }}
+"""
+
 # Стили для выпадающих списков
 DROPDOWN_STYLE = f"""
     QComboBox {{
