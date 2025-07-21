@@ -124,6 +124,7 @@ DROPDOWN_STYLE = f"""
     QComboBox QAbstractItemView {{
         border: 2px solid {DARK_GRAY};
         background: {WHITE};
+        color: {BLACK};
         selection-background-color: {ACCENT_BLUE};
         selection-color: {WHITE};
         outline: none;
@@ -131,7 +132,7 @@ DROPDOWN_STYLE = f"""
     }}
 """
 
-DROPDOWN_DELIGATE_STYLE = f"""
+DROPDOWN_DELEGATE_STYLE = f"""
     QComboBox {{
         background-color: {WHITE};
         color: {BLACK};
@@ -164,6 +165,7 @@ DROPDOWN_DELIGATE_STYLE = f"""
     QComboBox QAbstractItemView {{
         border: 2px solid {DARK_GRAY};
         background: {WHITE};
+        color: {BLACK};
         selection-background-color: {ACCENT_BLUE};
         selection-color: {WHITE};
         outline: none;
