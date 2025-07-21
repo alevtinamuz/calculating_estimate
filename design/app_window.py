@@ -1,23 +1,7 @@
-import os
-
-from PyQt6.QtCore import Qt, QEvent, QTimer
-from PyQt6.QtGui import QCursor, QMovie
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QLabel, QPushButton, QSizePolicy,
-                             QTableWidgetItem, QTableWidget, QHeaderView,
-                             QMessageBox, QToolButton, QTabWidget, QComboBox, QLineEdit, QApplication, QDialog,
-                             QDialogButtonBox, QDoubleSpinBox, QFormLayout)
-from dotenv import load_dotenv
-from supabase import create_client, Client
-
-import getters
-import setters
-from design.class_ComboBoxDelegate import ComboBoxDelegate
-from design.classes import WorkItem, MaterialItem
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget)
 from design.page_db import PageDB
 from design.page_estimate import PageEstimate
-from design.styles import MAIN_WINDOW_STYLE, LABEL_STYLE, BUTTON_STYLE, TABLE_STYLE, TOOL_BUTTON_STYLE, TAB_STYLE, \
-    TABLE_SELECTION_LAYOUT_STYLE, COMBO_BOX_STYLE
+from design.styles import MAIN_WINDOW_STYLE, TAB_STYLE
 
 
 class MainWindow(QMainWindow):
@@ -36,7 +20,7 @@ class MainWindow(QMainWindow):
 
         # Основной вертикальный layout
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        # main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(20)
 
         # Создаем виджет с вкладками

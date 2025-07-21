@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 import getters
 from design.classes import WorkItem, MaterialItem
-from design.styles import COMBO_BOX_STYLE
+from design.styles import DROPDOWN_DELIGATE_STYLE
 
 
 class ComboBoxDelegate(QStyledItemDelegate):
@@ -35,7 +35,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 editor = QWidget(parent, Qt.WindowType.Popup)
                 editor.setWindowFlag(Qt.WindowType.FramelessWindowHint)
                 editor.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-                editor.setStyleSheet(COMBO_BOX_STYLE)
+                editor.setStyleSheet(DROPDOWN_DELIGATE_STYLE)
 
                 layout = QHBoxLayout(editor)
                 layout.setContentsMargins(2, 2, 2, 2)

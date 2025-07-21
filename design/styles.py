@@ -1,202 +1,252 @@
+import os
+
+arrow_path = os.path.join(os.path.dirname(__file__), "arrow.png").replace("\\", "/")
+
+# Черно-белая палитра с приглушенным голубым акцентом
+BLACK = "#000000"              # Основной черный
+WHITE = "#FFFFFF"              # Чистый белый
+LIGHT_GRAY = "#F5F5F5"         # Очень светлый серый для фона
+DARK_GRAY = "#E5E5E5"          # Светло-серый для границ
+ACCENT_BLUE = "#e5f4ff"        # Приглушенный голубой акцентный цвет
+
 # Стили для главного окна
-MAIN_WINDOW_STYLE = """
-    QWidget {
-        background-color: white;
-    }
+MAIN_WINDOW_STYLE = f"""
+    QWidget {{
+        background-color: {WHITE};
+        font-family: 'Segoe UI', Arial, sans-serif;
+    }}
 """
 
-# Стили для метки
-LABEL_STYLE = """
-    QLabel {
-        color: black;
-        font-size: 24px;
+# Стили для меток
+LABEL_STYLE = f"""
+    QLabel {{
+        color: {BLACK};
+        font-size: 18px;
+        font-weight: 500;
         qproperty-alignment: AlignCenter;
-    }
-"""
-
-# Стили для пустой кнопки
-BUTTON_STYLE = """
-    QPushButton {
-        background-color: #f0f0f0;
-        border: 1px solid #ccc;
-        min-height: 40px;
-    }
-    
-    QPushButton:hover {
-        background-color: #e0e0e0;
-    }
-"""
-
-
-TABLE_STYLE = """
-    QTableWidget {
-        background-color: white;
-        border: 1px solid #dee2e6;
-        border-radius: 5px;
-        color: black;
-        gridline-color: transparent;
-        outline: 0;
-    }
-    
-    QHeaderView::section {
-        background-color: #e9ecef;
         padding: 5px;
-        border: 1px solid #dee2e6;
-        color: black;
-    }
-    QTableWidget::item:selected {
-        background-color: #e6f3ff;
-        color: black;
-    }
-    
-    QTableWidget::item {
-        background-color: white;
-        color: black;
-        border-bottom: 1px solid black;
-        border-right: 1px solid black;
-    }
-    
-    QTableWidget {
-        gridline-color: transparent;
-        show-decoration-selected: 1; /* Показывать выделение на всей строке */
-    }
-    
-    QTableWidget::item:edit-focus {
-        color: black;
-    }
-    
-    QLineEdit {
-        color: black;
-        background-color: white;
-        selection-color: white;
-        selection-background-color: #0078d7;
-    }
-    QSpinBox {
-        color: black;
-        background-color: white;
-    }
-    
-    QTableWidget::item[is_work="true"] {
-    background-color: #f0f7ff;
-    font-weight: bold;
-}
-
-QTableWidget::item[is_material="true"] {
-    background-color: #f9f9f9;
-    padding-left: 20px;
-}
+    }}
 """
 
+# Стили для основных кнопок (черные)
+PRIMARY_BUTTON_STYLE = f"""
+    QPushButton {{
+        background-color: {WHITE};
+        color: {BLACK};
+        border: 2px solid {LIGHT_GRAY};
+        border-radius: 4px;
+        font-size: 14px;
+        min-width: 120px;
+        min-height: 30px;
+    }}
+    
+    QPushButton:hover {{
+        background-color: {LIGHT_GRAY};
+        color: {BLACK};
+    }}
+    
+    QPushButton:pressed {{
+        background-color: {ACCENT_BLUE};
+        border-color: {ACCENT_BLUE};
+        color: {BLACK};
+    }}
+"""
 
-TAB_STYLE = """
-    QTabWidget::pane {
+# Стили для таблицы
+DATA_TABLE_STYLE = f"""
+    QTableWidget {{
+        background-color: {WHITE};
+        border: 2px solid {DARK_GRAY};
+        border-radius: 5px;
+        color: {BLACK};
+        gridline-color: {DARK_GRAY};
+        outline: 0;
+        font-size: 14px;
+    }}
+    
+    QHeaderView::section {{
+        background-color: {LIGHT_GRAY};
+        padding: 8px;
+        border: 1px solid {DARK_GRAY};
+        color: {BLACK};
+        font-weight: 600;
+    }}
+    
+    QTableWidget::item {{
+        padding: 6px;
+        border-right: 1px solid {DARK_GRAY};
+        border-bottom: 1px solid {DARK_GRAY};
+    }}
+    
+    QTableWidget::item:selected {{
+        background-color: {ACCENT_BLUE};
+        color: {BLACK};
+        font-weight: bold;
+    }}
+    
+    QTableCornerButton::section {{
+        background: {LIGHT_GRAY};
+        border: 2px solid {DARK_GRAY};
+    }}
+"""
+
+# Стили для выпадающих списков
+DROPDOWN_STYLE = f"""
+    QComboBox {{
+        background-color: {WHITE};
+        color: {BLACK};
+        border: 2px solid {DARK_GRAY};
+        border-radius: 1px;
+        min-width: 180px;
+        min-height: 30px;
+        font-size: 14px;
+        selection-background-color: {ACCENT_BLUE};
+        selection-color: {WHITE};
+    }}
+
+    QComboBox:hover {{
+        background-color: {LIGHT_GRAY};
+    }}
+    
+    QComboBox::drop-down {{
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 24px;
+        border-left: 2px solid {DARK_GRAY};
+    }}
+
+    QComboBox::down-arrow {{
+        image: url({arrow_path});
+        width: 14px;
+        height: 14px;
+    }}
+
+    QComboBox QAbstractItemView {{
+        border: 2px solid {DARK_GRAY};
+        background: {WHITE};
+        selection-background-color: {ACCENT_BLUE};
+        selection-color: {WHITE};
+        outline: none;
+        font-size: 14px;
+    }}
+"""
+
+DROPDOWN_DELIGATE_STYLE = f"""
+    QComboBox {{
+        background-color: {WHITE};
+        color: {BLACK};
+        border: 2px solid {DARK_GRAY};
+        border-radius: 1px;
+        min-width: 180px;
+        min-height: 20px;
+        font-size: 14px;
+        selection-background-color: {ACCENT_BLUE};
+        selection-color: {WHITE};
+    }}
+    
+    QComboBox:hover {{
+        background-color: {LIGHT_GRAY};
+    }}
+
+    QComboBox::drop-down {{
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 24px;
+        border-left: 2px solid {DARK_GRAY};
+    }}
+
+    QComboBox::down-arrow {{
+        image: url({arrow_path});
+        width: 14px;
+        height: 14px;
+    }}
+
+    QComboBox QAbstractItemView {{
+        border: 2px solid {DARK_GRAY};
+        background: {WHITE};
+        selection-background-color: {ACCENT_BLUE};
+        selection-color: {WHITE};
+        outline: none;
+        font-size: 14px;
+    }}
+"""
+
+# Стиль для панелей инструментов
+TOOL_PANEL_STYLE = f"""
+    QHBoxLayout, QVBoxLayout {{
+        background-color: {WHITE};
+        border-radius: 4px;
+        border: 2px solid {DARK_GRAY};
+        margin: 0;
+        padding: 0;
+    }}
+"""
+
+# Стили для кнопок действий
+ACTION_BUTTONS_STYLE = f"""
+    QToolButton {{
+        background-color: {WHITE};
+        border: 2px solid {DARK_GRAY};
+        border-radius: 4px;
+        min-width: 24px;
+        min-height: 24px;
+    }}
+    
+    QToolButton:hover {{
+        background-color: {LIGHT_GRAY};
+    }}
+    
+    QToolButton:pressed {{
+        background-color: {ACCENT_BLUE};
+        color: {BLACK};
+    }}
+"""
+
+# Стили для вкладок
+TAB_STYLE = f"""
+    QTabWidget::pane {{
         border: none;
-        background: white;
-    }
+        background: {WHITE};
+    }}
 
-    QTabBar::tab {
-        background: white;
-        color: black;
+    QTabBar::tab {{
+        background: {LIGHT_GRAY};
+        color: {BLACK};
         padding: 8px 16px;
-        border: 1px solid #ddd;
+        border: 2px solid {DARK_GRAY};
         border-bottom: none;
         border-top-left-radius: 4px;
         border-top-right-radius: 4px;
-    }
+    }}
 
-    QTabBar::tab:selected {
-        background: white;
-        color: black;
-        border-color: #aaa;
+    QTabBar::tab:selected {{
+        background: {WHITE};
+        color: {BLACK};
+        border-color: {DARK_GRAY};
         font-weight: bold;
-    }
+    }}
 
-    QTabBar::tab:!selected {
-        background: #f0f0f0;
-    }
-
-    QTabBar::tab:hover {
-        background: #e9e9e9;
-    }
+    QTabBar::tab:hover {{
+        background: {WHITE};
+    }}
 """
 
-
-TOOL_BUTTON_STYLE = """
-    QToolButton {
-        background-color: rgba(255, 255, 255, 150);
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        padding: 2px;
-        margin: 1px;
-    }
-    QToolButton:hover {
-        background-color: rgba(255, 255, 255, 200);
-    }
-    #editToolButton {
-        background-color: rgba(76, 175, 80, 150);
-    }
-    #deleteToolButton {
-        background-color: rgba(244, 67, 54, 150);
-    }
-"""
-
-COMBO_BOX_STYLE = """
-    QComboBox {
-        background-color: white;
-        color: black;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        padding: 5px;
-        min-width: 150px;
-    }
-
-    QComboBox:hover {
-        border: 1px solid #aaa;
-    }
-
-    QComboBox::drop-down {
-        subcontrol-origin: padding;
-        subcontrol-position: top right;
-        width: 20px;
-        border-left-width: 1px;
-        border-left-color: #ccc;
-        border-left-style: solid;
-    }
-
-    QComboBox::down-arrow {
-        image: url(icons/down_arrow.png);
-        width: 12px;
-        height: 12px;
-    }
-
-    QComboBox QAbstractItemView {
-        background-color: white;
-        color: black;
-        selection-background-color: #e0e0e0;
-        selection-color: black;
-        border: 1px solid #ccc;
-    }
-"""
-
-TABLE_SELECTION_LAYOUT_STYLE = """
-    QHBoxLayout {
-        background-color: white;
-        padding: 10px;
-        border-radius: 4px;
-        border: 1px solid #eee;
-    }
-"""
-
-MENU_STYLE = """
-    QMenu {
-        background-color: white;
-        border: 1px solid #ccc;
-    }
-    QMenu::item {
-        padding: 5px 25px 5px 20px;
-        color: black;
-    }
-    QMenu::item:selected {
-        background-color: #e6f3ff;
-    }
+# Стили для контекстных меню
+CONTEXT_MENU_STYLE = f"""
+    QMenu {{
+        background-color: {WHITE};
+        border: 2px solid {DARK_GRAY};
+        padding: 4px;
+    }}
+    
+    QMenu::item {{
+        padding: 6px 24px 6px 16px;
+        color: {BLACK};
+    }}
+    
+    QMenu::item:selected {{
+        background-color: {ACCENT_BLUE};
+        color: {WHITE};
+        font-weight: bold;
+    }}
 """

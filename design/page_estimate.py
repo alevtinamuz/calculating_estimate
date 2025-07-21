@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QTableWid
 
 from design.class_ComboBoxDelegate import ComboBoxDelegate
 from design.classes import MaterialItem, WorkItem
-from design.styles import LABEL_STYLE, TABLE_STYLE, BUTTON_STYLE
+from design.styles import LABEL_STYLE, DATA_TABLE_STYLE, PRIMARY_BUTTON_STYLE
 
 
 class PageEstimate(QMainWindow):
@@ -148,7 +148,7 @@ class PageEstimate(QMainWindow):
 
     def create_button(self, text, handler):
         btn = QPushButton(text)
-        btn.setStyleSheet(BUTTON_STYLE)
+        btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
         btn.clicked.connect(handler)
 
         return btn
@@ -166,7 +166,7 @@ class EstimateTableManager:
         self.setup_delegates()
 
     def configure_table_appearance(self):
-        self.table.setStyleSheet(TABLE_STYLE)
+        self.table.setStyleSheet(DATA_TABLE_STYLE)
         self.table.setShowGrid(False)
         self.table.setEditTriggers(
             QTableWidget.EditTrigger.DoubleClicked |

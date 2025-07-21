@@ -1,15 +1,15 @@
 import os
 
-from PyQt6.QtCore import Qt, QEvent, QTimer
-from PyQt6.QtGui import QCursor, QMovie
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QMovie
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel, QHeaderView, QSizePolicy, QHBoxLayout, QComboBox, \
     QTableWidget, QPushButton, QToolButton, QMessageBox, QDialog, QDialogButtonBox, QLineEdit, QDoubleSpinBox, \
     QFormLayout, QTableWidgetItem, QApplication
 
 import getters
 import setters
-from design.styles import LABEL_STYLE, TABLE_SELECTION_LAYOUT_STYLE, COMBO_BOX_STYLE, TABLE_STYLE, BUTTON_STYLE, \
-    TOOL_BUTTON_STYLE
+from design.styles import LABEL_STYLE, TOOL_PANEL_STYLE, DROPDOWN_STYLE, DATA_TABLE_STYLE, PRIMARY_BUTTON_STYLE, \
+    ACTION_BUTTONS_STYLE
 
 
 class PageDB(QMainWindow):
@@ -17,10 +17,8 @@ class PageDB(QMainWindow):
         super().__init__()
 
         self.supabase = supabase
-
         self.action_buttons = {}
         self.current_table = 'works'
-        self.current_hovered_row = -1
 
     def create_page_db(self):
         """Создает первую страницу (база данных)"""
@@ -57,17 +55,26 @@ class PageDB(QMainWindow):
             loading_movie = QMovie(gif_path)
             self.label.setMovie(loading_movie)
             loading_movie.start()
-            QApplication.processEvents()
             self.label.setVisible(True)
 
             self.table_db.setVisible(False)
             QApplication.processEvents()
 
             if self.current_table in ['works_categories', 'materials_categories']:
-                data = getters.sort_by_id(self.supabase, self.current_table, 'id')  # Для категорий - простая загрузка
+                data = getters.sort_by_id(self.supabase, self.current_table, 'id') 
+                header_names = {
+                    'id': 'ID',
+                    'name': 'Название категории'
+                }
             else:
-                data = getters.sort_by_id(self.supabase, self.current_table,
-                                          'category_id')  # Для остальных - с сортировкой
+                data = getters.sort_by_id(self.supabase, self.current_table, 'category_id') 
+                header_names = {
+                    'id': 'ID',
+                    'category_id': 'Категория',
+                    'name': 'Название',
+                    'price': 'Цена',
+                    'unit': 'Ед. изм.'
+                }
 
             if not data:
                 self.label.setText("Нет данных для отображения")
@@ -89,7 +96,7 @@ class PageDB(QMainWindow):
             self.table_db.setColumnCount(len(data[0].keys()))
 
             # Устанавливаем заголовки
-            headers = list(data[0].keys())
+            headers = [header_names.get(key, key) for key in data[0].keys()]
             self.table_db.setHorizontalHeaderLabels(headers)
 
             # Заполняем таблицу данными
@@ -115,7 +122,7 @@ class PageDB(QMainWindow):
             self.table_db.setShowGrid(False)
             self.table_db.setFrameShape(QTableWidget.Shape.NoFrame)
 
-            self.table_db.setStyleSheet(TABLE_STYLE)
+            self.table_db.setStyleSheet(DATA_TABLE_STYLE)
 
             self.table_db.viewport().update()
             self.table_db.updateGeometry()
@@ -138,59 +145,11 @@ class PageDB(QMainWindow):
             self.label.setText(f"Ошибка загрузки: {str(e)}")
             print('Error:', e)
 
-    def finalize_table_setup(self):
-        """Завершающая настройка таблицы после загрузки данных"""
-        try:
-            # Настраиваем размеры колонок
-            self.adjust_column_widths()
-
-            # Теперь показываем таблицу
-            self.table_db.setVisible(True)
-
-            # Принудительное обновление геометрии
-            self.table_db.viewport().updateGeometry()
-            self.table_db.updateGeometry()
-
-            print(f"Таблица отображена, ширина: {self.table_db.width()}")
-            print("Данные обновлены")
-
-        except Exception as e:
-            print(f"Ошибка при настройке таблицы: {str(e)}")
-
-    def eventFilter(self, source, event):
-        """Обработка событий мыши для показа/скрытия кнопок"""
-        if source is self.table_db.viewport():
-            if event.type() == QEvent.Type.MouseMove:
-                index = self.table_db.indexAt(event.pos())
-                if index.isValid():
-                    self.show_tool_buttons(index.row(), event.pos())
-                else:
-                    self.hide_all_tool_buttons()
-            elif event.type() == QEvent.Type.Leave:
-                self.hide_all_tool_buttons()
-        return super().eventFilter(source, event)
-
-    def show_tool_buttons(self, row, pos):
-        """Показывает кнопки для строки под курсором в крайней правой позиции"""
-        if row != self.current_hovered_row:
-            self.hide_all_tool_buttons()
-            self.current_hovered_row = row
-
-            if row in self.action_buttons:
-                self.set_pos_action_buttons(row)
-
     def hide_all_tool_buttons(self):
-        """Скрывает все кнопки, кроме кнопок выбранной строки"""
-        selected_row = self.get_selected_row()
-        for row, buttons in self.action_buttons.items():
-            if row != selected_row:
-                for btn in buttons:
-                    btn.hide()
-
-    def get_selected_row(self):
-        """Возвращает номер выбранной строки или -1 если нет выбора"""
-        selected = self.table_db.selectedItems()
-        return selected[0].row() if selected else -1
+        """Скрывает все кнопки"""
+        for buttons in self.action_buttons.values():
+            for btn in buttons:
+                btn.hide()
 
     def add_row(self, row):
         """Обработка редактирования строки с формой из нескольких полей"""
@@ -237,14 +196,14 @@ class PageDB(QMainWindow):
                 for category in categories_work:
                     category_combo_work.addItem(category['name'], userData=category['id'])
                 category_combo_work.setCurrentText(current_category)
-                form_layout.addRow("Категория работ:", category_combo_work)
+                form_layout.addRow("Категория работы:", category_combo_work)
             if self.current_table == 'materials':
                 category_combo_material = QComboBox()
                 categories_material = getters.get_all_table(self.supabase, 'materials_categories')
                 for category in categories_material:
                     category_combo_material.addItem(category['name'], userData=category['id'])
                 category_combo_material.setCurrentText(current_category)
-                form_layout.addRow("Категория работ:", category_combo_material)
+                form_layout.addRow("Категория материала:", category_combo_material)
 
         main_layout.addLayout(form_layout)
 
@@ -340,8 +299,7 @@ class PageDB(QMainWindow):
                 categories_work = getters.get_all_table(self.supabase, 'works_categories')
                 for category in categories_work:
                     category_combo_work.addItem(category['name'], userData=category['id'])
-                current_category_name_work = getters.get_entity_by_id(self.supabase, 'works_categories',
-                                                                      current_category)
+                current_category_name_work = getters.get_entity_by_id(self.supabase, 'works_categories', current_category)
                 category_combo_work.setCurrentText(current_category_name_work[0]['name'])
                 form_layout.addRow("Категория работ:", category_combo_work)
             if self.current_table == 'materials':
@@ -349,8 +307,7 @@ class PageDB(QMainWindow):
                 categories_material = getters.get_all_table(self.supabase, 'materials_categories')
                 for category in categories_material:
                     category_combo_material.addItem(category['name'], userData=category['id'])
-                current_category_name_material = getters.get_entity_by_id(self.supabase, 'materials_categories',
-                                                                          current_category)
+                current_category_name_material = getters.get_entity_by_id(self.supabase, 'materials_categories', current_category)
                 category_combo_material.setCurrentText(current_category_name_material[0]['name'])
                 form_layout.addRow("Категория работ:", category_combo_material)
 
@@ -443,16 +400,10 @@ class PageDB(QMainWindow):
                 self.label.setText(f"Ошибка удаления: {str(e)}")
                 print('Error:', e)
 
-    def update_buttons_position(self):
-        """Обновляет позиции кнопок при прокрутке или изменении размера"""
-        if self.current_hovered_row >= 0:
-            pos = self.table_db.viewport().mapFromGlobal(QCursor.pos())
-            self.show_tool_buttons(self.current_hovered_row, pos)
-
     def create_edit_btn(self, row_idx=None):
         edit_btn = QToolButton()
         edit_btn.setObjectName("editToolButton")
-        edit_btn.setStyleSheet(TOOL_BUTTON_STYLE)
+        edit_btn.setStyleSheet(ACTION_BUTTONS_STYLE)
         edit_btn.setText("✏️")
         edit_btn.setToolTip("Редактировать")
         edit_btn.clicked.connect(lambda _, r=row_idx: self.edit_row(r))
@@ -466,7 +417,7 @@ class PageDB(QMainWindow):
     def create_delete_btn(self, row_idx=None):
         delete_btn = QToolButton()
         delete_btn.setObjectName("deleteToolButton")
-        delete_btn.setStyleSheet(TOOL_BUTTON_STYLE)
+        delete_btn.setStyleSheet(ACTION_BUTTONS_STYLE)
         delete_btn.setText("🗑️")
         delete_btn.setToolTip("Удалить")
         delete_btn.clicked.connect(lambda _, r=row_idx: self.delete_row(r))
@@ -480,24 +431,24 @@ class PageDB(QMainWindow):
     def create_refresh_button(self):
         # Кнопка загрузки данных
         refresh_button = QPushButton("Обновить данные")
-        refresh_button.setStyleSheet(BUTTON_STYLE)
-        refresh_button.setFixedSize(150, 30)
+        refresh_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
+        # refresh_button.setFixedSize(150, 30)
         refresh_button.clicked.connect(self.load_data_from_supabase)
 
         return refresh_button
 
     def create_add_button(self, row_idx=None):
-        add_button = QPushButton("➕")
-        add_button.setStyleSheet(BUTTON_STYLE)
-        add_button.setFixedSize(150, 30)
-        add_button.setToolTip("Добавить данные")
+        add_button = QPushButton("Добавить данные")
+        add_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
+        # add_button.setFixedSize(150, 30)
+        # add_button.setToolTip("Добавить данные")
         add_button.clicked.connect(lambda _, r=row_idx: self.add_row(r))
 
         return add_button
 
     def create_table_db(self):
         table_db = QTableWidget()
-        table_db.setStyleSheet(TABLE_STYLE)
+        table_db.setStyleSheet(DATA_TABLE_STYLE)
         table_db.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table_db.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)  # Выделение всей строки
         table_db.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -512,54 +463,64 @@ class PageDB(QMainWindow):
         selected = self.table_db.selectedItems()
         if selected:
             row = selected[0].row()
-            self.current_hovered_row = row  # Сохраняем выбранную строку
-            self.show_tool_buttons(row, None)
+            self.show_tool_buttons(row)
+        else:
+            self.hide_all_tool_buttons()
 
-    def set_pos_action_buttons(self, row):
-        edit_btn, delete_btn = self.action_buttons[row]
+    def show_tool_buttons(self, row):
+        """Показывает кнопки для выбранной строки"""
+        self.hide_all_tool_buttons()
+        
+        if row in self.action_buttons:
+            edit_btn, delete_btn = self.action_buttons[row]
+            rect = self.table_db.visualRect(self.table_db.model().index(row, 0))
+            table_width = self.table_db.viewport().width()
+            btn_width = edit_btn.sizeHint().width()
+            spacing = 5
 
-        # Получаем прямоугольник всей строки
-        rect = self.table_db.visualRect(self.table_db.model().index(row, 0))
+            delete_btn.move(
+                table_width - btn_width - spacing,
+                rect.top() + (rect.height() - delete_btn.sizeHint().height()) // 2
+            )
 
-        # Получаем ширину видимой области таблицы
-        table_width = self.table_db.viewport().width()
+            edit_btn.move(
+                table_width - 2 * btn_width - 2 * spacing,
+                rect.top() + (rect.height() - edit_btn.sizeHint().height()) // 2
+            )
 
-        # Размеры кнопок
-        btn_width = edit_btn.sizeHint().width()
-        spacing = 5
-
-        # Позиционируем кнопки в крайней правой части видимой области
-        delete_btn.move(
-            table_width - btn_width - spacing,
-            rect.top() + (rect.height() - delete_btn.sizeHint().height()) // 2
-        )
-
-        edit_btn.move(
-            table_width - 2 * btn_width - 2 * spacing,
-            rect.top() + (rect.height() - edit_btn.sizeHint().height()) // 2
-        )
-
-        edit_btn.show()
-        delete_btn.show()
+            edit_btn.show()
+            delete_btn.show()
 
     def create_table_selector(self):
+        table_names = {
+            "works": "Работы",
+            "works_categories": "Категории работ",
+            "materials": "Материалы",
+            "materials_categories": "Категории материалов"
+        }
         # Создаем выпадающий список для выбора таблицы
         table_selector = QComboBox()
-        table_selector.setStyleSheet(COMBO_BOX_STYLE)  # Применяем стиль
-        table_selector.addItems(["works", "works_categories", "materials", "materials_categories"])
-        table_selector.setCurrentText(self.current_table)
-        table_selector.currentTextChanged.connect(self.on_table_changed)
-
+        table_selector.setStyleSheet(DROPDOWN_STYLE)  # Применяем стиль
+        for db_name, name in table_names.items():
+            table_selector.addItem(name, db_name)
+            if db_name == self.current_table:
+                table_selector.setCurrentText(name)
+        
+        table_selector.currentTextChanged.connect(
+            lambda text: self.on_table_changed(
+                next(key for key, value in table_names.items() if value == text)
+            )
+        )
         return table_selector
 
     def create_header_of_table(self):
         """Создает фиксированный заголовок таблицы"""
         header_widget = QWidget()
-        header_widget.setStyleSheet(TABLE_SELECTION_LAYOUT_STYLE)
+        header_widget.setStyleSheet(TOOL_PANEL_STYLE)
 
         # Основной layout с фиксированными параметрами
         main_layout = QHBoxLayout(header_widget)
-        main_layout.setContentsMargins(10, 5, 10, 5)  # Отступы: слева, сверху, справа, снизу
+        # main_layout.setContentsMargins(0, 0, 0, 0)  # Отступы: слева, сверху, справа, снизу
         main_layout.setSpacing(10)
 
         # Метка выбора таблицы
