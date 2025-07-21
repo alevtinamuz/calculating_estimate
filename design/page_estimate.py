@@ -48,8 +48,6 @@ class PageEstimate(QMainWindow):
             self.table_manager = EstimateTableManager(self.table_estimate, self.supabase)
 
             self.table_manager.setup_table()
-            self.table_manager.setup_headers()
-            self.table_manager.setup_delegates()
 
             layout.addWidget(self.table_estimate)
 
@@ -69,148 +67,18 @@ class PageEstimate(QMainWindow):
 
     def add_row_work(self):
         try:
-            table = self.table_estimate
-            row_count = table.rowCount()
-            table.insertRow(row_count)
-
-            # Добавляем новую работу
-            self.works.append(WorkItem())
-            # Устанавливаем номер строки
-            last_num = 0
-            for row in range(table.rowCount() - 1):
-                item = table.item(row, 0)
-                if item and item.text().isdigit():
-                    last_num = max(last_num, int(item.text()))
-
-            # Устанавливаем новый номер (последний + 1)
-            item = QTableWidgetItem(str(last_num + 1))
-            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            table.setItem(row_count, 0, item)
-
-            for col in range(table.columnCount()):
-                if not table.item(row_count, col):  # Если ячейка еще не создана
-                    item = QTableWidgetItem("")
-                    table.setItem(row_count, col, item)
-
-                # Устанавливаем атрибут для работы
-                item = table.item(row_count, col)
-                item.setData(Qt.ItemDataRole.UserRole, "is_work")
+            self.table_manager.add_row_work()
 
         except Exception as e:
             self.show_error("Не удалось добавить строку работы", str(e))
-            # QMessageBox.critical(self, "Ошибка", f"Не удалось добавить строку: {str(e)}")
 
     def add_row_material(self):
         try:
-            table = self.table_estimate
 
-            # 1. Находим индекс выделенной работы в списке self.works
-            work_idx = self.find_selected_work_index()
-            if work_idx < 0 or work_idx >= len(self.works):
-                work_idx = len(self.works) - 1
-
-            # 2. Вычисляем позицию вставки в таблице
-            insert_row = self.get_work_end_row(work_idx) + 1
-
-            # 3. Вставляем новую строку
-            table.insertRow(insert_row)
-
-            # 4. Добавляем материал в модель данных
-            self.works[work_idx].materials.append(MaterialItem())
-
-            # 5. Полностью перестраиваем объединение ячеек
-            self.rebuild_all_spans()
-
-            # 6. Заполняем ячейки материала
-            for col in range(6, table.columnCount()):
-                item = QTableWidgetItem("")
-                item.setData(Qt.ItemDataRole.UserRole, "is_material")
-                table.setItem(insert_row, col, item)
-
-            # 7. Обновляем выделение
-            self.update_selection(insert_row)
+            self.table_manager.add_row_material()
 
         except Exception as e:
             self.show_error("Не удалось добавить строку материалов", str(e))
-
-    def find_selected_work_index(self):
-        """Находит индекс выделенной работы в self.works"""
-        table = self.table_estimate
-        selected_items = table.selectedItems()
-
-        if not selected_items or not self.works:
-            return len(self.works) - 1
-
-        selected_row = selected_items[0].row()
-        current_row = 0
-
-        for i, work in enumerate(self.works):
-            work_height = len(work.materials) + 1
-            if current_row <= selected_row < current_row + work_height:
-                return i
-            current_row += work_height
-
-        return len(self.works) - 1
-
-    def get_work_end_row(self, work_idx):
-        """Возвращает последнюю строку указанной работы в таблице"""
-        if work_idx < 0 or work_idx >= len(self.works):
-            return 0
-
-        end_row = 0
-        for i in range(work_idx + 1):
-            end_row += len(self.works[i].materials) + 1
-
-        return end_row - 1
-
-    def rebuild_all_spans(self):
-        """Полностью перестраивает все объединения ячеек"""
-        table = self.table_estimate
-        current_row = 0
-
-        # 1. Сначала сбрасываем все объединения
-        for row in range(table.rowCount()):
-            for col in range(6):
-                table.setSpan(row, col, 1, 1)
-
-        # 2. Затем устанавливаем новые объединения
-        for work in self.works:
-            span_height = len(work.materials) + 1
-
-            for col in range(6):
-                table.setSpan(current_row, col, span_height, 1)
-
-            current_row += span_height
-
-    def update_selection(self, row):
-        """Обновляет выделение строки"""
-        table = self.table_estimate
-        table.clearSelection()
-
-        for col in range(table.columnCount()):
-            item = table.item(row, col)
-            if item:
-                item.setSelected(True)
-
-    def find_work_row(self, material_row):
-        """Находит строку работы для указанной строки материала"""
-        table = self.table_estimate
-        row = material_row - 1
-        while row >= 0:
-            if table.item(row, 0) and table.item(row, 0).data(Qt.ItemDataRole.UserRole) == "is_work":
-                return row
-            row -= 1
-
-        return material_row
-
-    def find_last_work_row(self):
-        """Находит последнюю строку с работой"""
-        table = self.table_estimate
-        for row in range(table.rowCount() - 1, -1, -1):
-            item = table.item(row, 0)
-            if item and item.data(Qt.ItemDataRole.UserRole) == "is_work":
-                return row
-        return table.rowCount() - 1
 
     def create_button_panel(self):
         button_panel = QWidget()
@@ -242,11 +110,13 @@ class EstimateTableManager:
         self.works = []
 
     def setup_table(self):
+        """Настройка таблицы"""
         self.configure_table_appearance()
         self.setup_headers()
         self.setup_delegates()
 
     def configure_table_appearance(self):
+        """Настраивает внешний вид таблицы"""
         self.table.setStyleSheet(TABLE_STYLE)
         self.table.setShowGrid(False)
         self.table.setEditTriggers(
@@ -257,6 +127,7 @@ class EstimateTableManager:
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
 
     def setup_headers(self):
+        """Устанавливает заголовки таблицы"""
         headers = [
             "№ п/п", "Наименование работ и затрат", "Ед. изм.", "К-во",
             "Фактический ФОТ на ед., руб", "ФОТ всего, руб", "Наименование материалов",
@@ -266,8 +137,127 @@ class EstimateTableManager:
         self.table.setHorizontalHeaderLabels(headers)
 
     def setup_delegates(self):
+        """Устанавливает делегаты, кем бы они ни были"""
         delegate = ComboBoxDelegate(self.table, self.supabase, self)
         self.table.setItemDelegate(delegate)
+
+    def add_row_work(self):
+        """Добавляет строку с работой"""
+        table = self.table
+        row_count = table.rowCount()
+        table.insertRow(row_count)
+
+        # Добавляем новую работу
+        self.works.append(WorkItem())
+        # Устанавливаем номер строки
+        last_num = 0
+        for row in range(table.rowCount() - 1):
+            item = table.item(row, 0)
+            if item and item.text().isdigit():
+                last_num = max(last_num, int(item.text()))
+
+        # Устанавливаем новый номер (последний + 1)
+        item = QTableWidgetItem(str(last_num + 1))
+        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        table.setItem(row_count, 0, item)
+
+        for col in range(table.columnCount()):
+            if not table.item(row_count, col):  # Если ячейка еще не создана
+                item = QTableWidgetItem("")
+                table.setItem(row_count, col, item)
+
+            # Устанавливаем атрибут для работы
+            item = table.item(row_count, col)
+            item.setData(Qt.ItemDataRole.UserRole, "is_work")
+
+    def add_row_material(self):
+        """Добавляет строку с материалами для выбранной работы"""
+        table = self.table
+
+        # 1. Находим индекс выделенной работы в списке self.works
+        work_idx = self.find_selected_work_index()
+        if work_idx < 0 or work_idx >= len(self.works):
+            work_idx = len(self.works) - 1
+
+        # 2. Вычисляем позицию вставки в таблице
+        insert_row = self.get_work_end_row(work_idx) + 1
+
+        # 3. Вставляем новую строку
+        table.insertRow(insert_row)
+
+        # 4. Добавляем материал в модель данных
+        self.works[work_idx].materials.append(MaterialItem())
+
+        # 5. Полностью перестраиваем объединение ячеек
+        self.rebuild_all_spans()
+
+        # 6. Заполняем ячейки материала
+        for col in range(6, table.columnCount()):
+            item = QTableWidgetItem("")
+            item.setData(Qt.ItemDataRole.UserRole, "is_material")
+            table.setItem(insert_row, col, item)
+
+        # 7. Обновляем выделение
+        self.update_selection(insert_row)
+
+    def find_selected_work_index(self):
+        """Находит индекс выделенной работы в self.works"""
+        table = self.table
+        selected_items = table.selectedItems()
+
+        if not selected_items or not self.works:
+            return len(self.works) - 1
+
+        selected_row = selected_items[0].row()
+        current_row = 0
+
+        for i, work in enumerate(self.works):
+            work_height = len(work.materials) + 1
+            if current_row <= selected_row < current_row + work_height:
+                return i
+            current_row += work_height
+
+        return len(self.works) - 1
+
+    def get_work_end_row(self, work_idx):
+        """Возвращает последнюю строку указанной работы в таблице"""
+        if work_idx < 0 or work_idx >= len(self.works):
+            return 0
+
+        end_row = 0
+        for i in range(work_idx + 1):
+            end_row += len(self.works[i].materials) + 1
+
+        return end_row - 1
+
+    def rebuild_all_spans(self):
+        """Полностью перестраивает все объединения ячеек"""
+        table = self.table
+        current_row = 0
+
+        # 1. Сначала сбрасываем все объединения
+        for row in range(table.rowCount()):
+            for col in range(6):
+                table.setSpan(row, col, 1, 1)
+
+        # 2. Затем устанавливаем новые объединения
+        for work in self.works:
+            span_height = len(work.materials) + 1
+
+            for col in range(6):
+                table.setSpan(current_row, col, span_height, 1)
+
+            current_row += span_height
+
+    def update_selection(self, row):
+        """Обновляет выделение строки"""
+        table = self.table
+        table.clearSelection()
+
+        for col in range(table.columnCount()):
+            item = table.item(row, col)
+            if item:
+                item.setSelected(True)
 
 
 class EstimateDataHandler:
