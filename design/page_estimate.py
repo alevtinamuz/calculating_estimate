@@ -81,6 +81,20 @@ class PageEstimate(QMainWindow):
         except Exception as e:
             self.show_error("Не удалось добавить строку материалов", str(e))
 
+    def delete_selected_work(self):
+        """Удаляет выбранную работу"""
+        try:
+            self.table_manager.delete_selected_work()
+        except Exception as e:
+            self.show_error("Не удалось удалить работу", str(e))
+
+    def delete_selected_material(self):
+        """Удаляет выбранный материал"""
+        try:
+            self.table_manager.delete_selected_material()
+        except Exception as e:
+            self.show_error("Не удалось удалить материал", str(e))
+
     def create_button_panel(self):
         """Создает кнопки для добавления работ и материалов"""
         button_panel = QWidget()
@@ -88,9 +102,13 @@ class PageEstimate(QMainWindow):
 
         add_work_btn = self.create_button("Добавить работу", lambda: self.add_row_work())
         add_material_btn = self.create_button("Добавить материал", lambda: self.add_row_material())
+        delete_work_btn = self.create_button("Удалить работу", lambda: self.delete_selected_work())
+        delete_material_btn = self.create_button("Удалить материал", lambda: self.delete_selected_material())
 
         button_layout.addWidget(add_work_btn)
         button_layout.addWidget(add_material_btn)
+        button_layout.addWidget(delete_work_btn)
+        button_layout.addWidget(delete_material_btn)
 
         return button_panel
 
@@ -189,9 +207,6 @@ class EstimateTableManager:
 
             # Находим выделенную работу
             work_idx, work_start_row = self.find_selected_work()
-            if work_idx is None:  # Если ничего не выделено, берем последнюю работу
-                work_idx = len(self.works) - 1
-                work_start_row = self.calculate_work_start_row(work_idx)
 
             # Добавляем материал в модель
             self.works[work_idx].materials.append(MaterialItem())
@@ -215,6 +230,130 @@ class EstimateTableManager:
             # Откатываем изменения в модели при ошибке
             if work_idx is not None and len(self.works[work_idx].materials) > 0:
                 self.works[work_idx].materials.pop()
+            raise
+        finally:
+            self.table.setUpdatesEnabled(True)
+
+    def delete_selected_work(self):
+        """Удаляет выбранную работу и все её материалы"""
+        selected_ranges = self.table.selectedRanges()
+        if not selected_ranges:
+            QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для удаления")
+            return
+
+        selected_row = selected_ranges[0].topRow()
+        work_idx, work_start_row = self.find_selected_work()
+
+        if work_idx is None:
+            QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для удаления")
+            return
+
+        # Подтверждение удаления
+        reply = QMessageBox.question(
+            self.page_estimate,
+            "Подтверждение",
+            f"Вы уверены, что хотите удалить работу '{self.works[work_idx].name}' и все её материалы?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.No:
+            return
+
+        try:
+            self.table.setUpdatesEnabled(False)
+
+            # Удаляем строки из таблицы
+            work_height = len(self.works[work_idx].materials) + 1
+            for _ in range(work_height):
+                self.table.removeRow(work_start_row)
+
+            # Удаляем работу из модели
+            del self.works[work_idx]
+
+            # Обновляем маппинг, объединения и нумерацию
+            self.rebuild_mapping()
+            self.update_all_spans()
+            self.renumber_works()
+
+        except Exception as e:
+            print(f"Ошибка при удалении работы: {e}")
+            raise
+        finally:
+            self.table.setUpdatesEnabled(True)
+
+    def delete_selected_material(self):
+        """Удаляет выбранный материал"""
+        selected_ranges = self.table.selectedRanges()
+        if not selected_ranges:
+            QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбран ни один материал для удаления")
+            return
+
+        selected_row = selected_ranges[0].topRow()
+        work_idx, work_start_row = self.find_selected_work()
+
+        if work_idx is None:
+            QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбран ни один материал для удаления")
+            return
+
+        # Определяем, выделена ли строка работы (первый материал)
+        is_first_material = selected_row == work_start_row
+        materials_count = len(self.works[work_idx].materials)
+
+        # Если это первый и единственный материал
+        if is_first_material and materials_count == 1:
+            QMessageBox.warning(self.page_estimate, "Предупреждение",
+                                "Нельзя удалить единственный материал работы. Удалите всю работу.")
+            return
+
+        # Определяем индекс материала
+        material_idx = selected_row - work_start_row - (0 if is_first_material else 1)
+
+        # Проверяем, что индекс материала корректен
+        if material_idx < 0 or material_idx >= materials_count:
+            QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбран ни один материал для удаления")
+            return
+
+        # Подтверждение удаления
+        reply = QMessageBox.question(
+            self.page_estimate,
+            "Подтверждение",
+            "Вы уверены, что хотите удалить выбранный материал?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.No:
+            return
+
+        try:
+            self.table.setUpdatesEnabled(False)
+
+            if is_first_material:
+                # Для первого материала перемещаем следующий материал на место первого
+                next_material_row = work_start_row + 1
+
+                # Копируем данные из следующего материала в строку работы
+                for col in range(6, self.table.columnCount()):
+                    item = self.table.item(next_material_row, col)
+                    if item:
+                        new_item = QTableWidgetItem(item.text())
+                        new_item.setFlags(item.flags())
+                        new_item.setData(Qt.ItemDataRole.UserRole, item.data(Qt.ItemDataRole.UserRole))
+                        self.table.setItem(work_start_row, col, new_item)
+
+                # Удаляем строку следующего материала
+                self.table.removeRow(next_material_row)
+            else:
+                # Для обычных материалов просто удаляем строку
+                self.table.removeRow(selected_row)
+
+            # Удаляем материал из модели
+            del self.works[work_idx].materials[material_idx]
+
+            # Обновляем объединения для работы
+            self.update_spans_for_work(work_idx, work_start_row)
+
+        except Exception as e:
+            print(f"Ошибка при удалении материала: {e}")
             raise
         finally:
             self.table.setUpdatesEnabled(True)
@@ -289,10 +428,11 @@ class EstimateTableManager:
             item.setData(Qt.ItemDataRole.UserRole, f"work_col_{col}")
             self.table.setItem(row, col, item)
 
-        # Ячейки материалов (пустые, нередактируемые)
+        # Ячейки материалов
         for col in range(6, self.table.columnCount()):
             item = QTableWidgetItem("")
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
+            item.setData(Qt.ItemDataRole.UserRole, f"material_col_{col}")
             self.table.setItem(row, col, item)
 
     def fill_material_row(self, row):

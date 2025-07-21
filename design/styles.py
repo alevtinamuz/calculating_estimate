@@ -3,11 +3,11 @@ import os
 arrow_path = os.path.join(os.path.dirname(__file__), "arrow.png").replace("\\", "/")
 
 # Черно-белая палитра с приглушенным голубым акцентом
-BLACK = "#000000"              # Основной черный
-WHITE = "#FFFFFF"              # Чистый белый
-LIGHT_GRAY = "#F5F5F5"         # Очень светлый серый для фона
-DARK_GRAY = "#E5E5E5"          # Светло-серый для границ
-ACCENT_BLUE = "#e5f4ff"        # Приглушенный голубой акцентный цвет
+BLACK = "#000000"  # Основной черный
+WHITE = "#FFFFFF"  # Чистый белый
+LIGHT_GRAY = "#F5F5F5"  # Очень светлый серый для фона
+DARK_GRAY = "#E5E5E5"  # Светло-серый для границ
+ACCENT_BLUE = "#e5f4ff"  # Приглушенный голубой акцентный цвет
 
 # Стили для главного окна
 MAIN_WINDOW_STYLE = f"""
@@ -39,12 +39,12 @@ PRIMARY_BUTTON_STYLE = f"""
         min-width: 120px;
         min-height: 30px;
     }}
-    
+
     QPushButton:hover {{
         background-color: {LIGHT_GRAY};
         color: {BLACK};
     }}
-    
+
     QPushButton:pressed {{
         background-color: {ACCENT_BLUE};
         border-color: {ACCENT_BLUE};
@@ -63,7 +63,7 @@ DATA_TABLE_STYLE = f"""
         outline: 0;
         font-size: 14px;
     }}
-    
+
     QHeaderView::section {{
         background-color: {LIGHT_GRAY};
         padding: 8px;
@@ -71,19 +71,19 @@ DATA_TABLE_STYLE = f"""
         color: {BLACK};
         font-weight: 600;
     }}
-    
+
     QTableWidget::item {{
         padding: 6px;
         border-right: 1px solid {DARK_GRAY};
         border-bottom: 1px solid {DARK_GRAY};
     }}
-    
+
     QTableWidget::item:selected {{
         background-color: {ACCENT_BLUE};
         color: {BLACK};
         font-weight: bold;
     }}
-    
+
     QTableCornerButton::section {{
         background: {LIGHT_GRAY};
         border: 2px solid {DARK_GRAY};
@@ -128,7 +128,7 @@ DROPDOWN_STYLE = f"""
     QComboBox:hover {{
         background-color: {LIGHT_GRAY};
     }}
-    
+
     QComboBox::drop-down {{
         subcontrol-origin: padding;
         subcontrol-position: top right;
@@ -165,7 +165,7 @@ DROPDOWN_DELEGATE_STYLE = f"""
         selection-background-color: {ACCENT_BLUE};
         selection-color: {WHITE};
     }}
-    
+
     QComboBox:hover {{
         background-color: {LIGHT_GRAY};
     }}
@@ -183,7 +183,7 @@ DROPDOWN_DELEGATE_STYLE = f"""
         height: 14px;
     }}
 
-    QComboBox QAbstractItemView {{
+QComboBox QAbstractItemView {{
         border: 2px solid {DARK_GRAY};
         background: {WHITE};
         color: {BLACK};
@@ -214,11 +214,11 @@ ACTION_BUTTONS_STYLE = f"""
         min-width: 24px;
         min-height: 24px;
     }}
-    
+
     QToolButton:hover {{
         background-color: {LIGHT_GRAY};
     }}
-    
+
     QToolButton:pressed {{
         background-color: {ACCENT_BLUE};
         color: {BLACK};
@@ -261,12 +261,12 @@ CONTEXT_MENU_STYLE = f"""
         border: 2px solid {DARK_GRAY};
         padding: 4px;
     }}
-    
+
     QMenu::item {{
         padding: 6px 24px 6px 16px;
         color: {BLACK};
     }}
-    
+
     QMenu::item:selected {{
         background-color: {ACCENT_BLUE};
         color: {WHITE};
