@@ -289,10 +289,11 @@ class EstimateTableManager:
             item.setData(Qt.ItemDataRole.UserRole, f"work_col_{col}")
             self.table.setItem(row, col, item)
 
-        # Ячейки материалов (пустые, нередактируемые)
+        # Ячейки материалов (редактируемые, как и для обычных строк материалов)
         for col in range(6, self.table.columnCount()):
             item = QTableWidgetItem("")
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
+            item.setData(Qt.ItemDataRole.UserRole, f"material_col_{col}")
             self.table.setItem(row, col, item)
 
     def fill_material_row(self, row):
