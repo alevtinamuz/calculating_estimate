@@ -123,7 +123,7 @@ class EstimateTableManager:
 
     def configure_table_appearance(self):
         """Настраивает внешний вид таблицы"""
-        self.table.setStyleSheet(TABLE_STYLE)
+        self.table.setStyleSheet(DATA_TABLE_STYLE)
         self.table.setShowGrid(False)
         self.table.setEditTriggers(
             QTableWidget.EditTrigger.DoubleClicked |
