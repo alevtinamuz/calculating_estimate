@@ -192,6 +192,16 @@ QComboBox QAbstractItemView {{
         outline: none;
         font-size: 14px;
     }}
+    
+    QLineEdit {{
+        background-color: {WHITE};
+        color: {BLACK};
+        border: 2px solid {DARK_GRAY};
+        border-radius: 4px;
+        min-height: 30px;
+        font-size: 14px;
+        min-width: 200px;
+    }}
 """
 
 # Стиль для панелей инструментов

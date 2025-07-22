@@ -2,7 +2,7 @@ import os
 from supabase import create_client, Client
 
 from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate
+from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit
 from dotenv import load_dotenv
 
 import getters
@@ -19,12 +19,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
         self.current_col = -1
         self.editor_pos_offset = QPoint(-70, 0)
         self.main_window = main_window
-
-        load_dotenv()
-        self.supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY")
-        )
+        self.search_line_edit = None
 
     def createEditor(self, parent, option, index):
         self.current_row = index.row()
@@ -37,17 +32,27 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 editor.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
                 editor.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
 
-                layout = QHBoxLayout(editor)
+                layout = QVBoxLayout(editor)
                 layout.setContentsMargins(2, 2, 2, 2)
 
+                self.search_line_edit = QLineEdit(editor)
+                self.search_line_edit.setPlaceholderText("Поиск...")
+                # self.search_line_edit.textChanged.connect(self.)
+                layout.addWidget(self.search_line_edit)
+
+                combo_container = QWidget(editor)
+                combo_layout = QHBoxLayout(combo_container)
+                combo_layout.setContentsMargins(0, 0, 0, 0)
+
                 # Ваши комбобоксы
-                self.main_combo = QComboBox(editor)
-                self.sub_combo = QComboBox(editor)
+                self.main_combo = QComboBox(combo_container)
+                self.sub_combo = QComboBox(combo_container)
 
                 self.main_combo.currentIndexChanged.connect(self.update_sub_combo)
 
-                layout.addWidget(self.main_combo)
-                layout.addWidget(self.sub_combo)
+                combo_layout.addWidget(self.main_combo)
+                combo_layout.addWidget(self.sub_combo)
+                layout.addWidget(combo_container)
 
                 # Заполнение данными
                 self.load_initial_data(index.column())
