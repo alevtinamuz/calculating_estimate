@@ -128,6 +128,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
         try:
             categories = self.supabase.table(f"{entity_type}_categories").select('*').execute().data
             self.main_combo.clear()
+            self.main_combo.addItem("Все категории", 0)
             for cat in categories:
                 self.main_combo.addItem(cat['name'], cat['id'])
 
@@ -146,15 +147,20 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
             try:
                 if text:
-                    items = getters.get_entity_by_substr(self.supabase, entity_type, text)
-                    print("items", items)
+                    items = getters.get_entity_by_substr(self.supabase, entity_type, text, cat_id)
                 if not items:
-                    items = self.supabase.table(entity_type) \
-                        .select('*') \
-                        .eq('category_id', cat_id) \
-                        .execute().data
+                    if cat_id:
+                        items = self.supabase.table(entity_type) \
+                            .select('*') \
+                            .eq('category_id', cat_id) \
+                            .execute().data
+                    else:
+                        items = self.supabase.table(entity_type) \
+                            .select('*') \
+                            .execute().data
 
                 self.sub_combo.clear()
+                self.sub_combo.addItem('-', 0)
                 for item in items:
                     self.sub_combo.addItem(item['name'], item['id'])
 
@@ -172,10 +178,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 # Определяем тип сущности (работа или материал)
                 entity_type = "works" if index.column() == 1 else "materials"
                 entities = getters.get_entity_by_id(self.supabase, entity_type, selected_id)
-
-                if not entities:
-                    print(f"Не найдена сущность с ID: {selected_id}")
-                    return
 
                 entity = entities[0]
 
@@ -196,8 +198,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
                     model.setData(unit_index, entity['unit'])
 
                 elif index.column() == 6:  # Обработка материала
+
                     # Находим родительскую работу для этого материала
                     work_row = index.row()
+
                     while work_row >= 0 and not model.index(work_row, 0).data():
                         work_row -= 1
 
@@ -217,10 +221,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
                         # Обновляем ячейки цены и единиц измерения материала
                         price_index = model.index(index.row(), 9)
-                        model.setData(price_index, entity['price'])
+                        model.setData(price_index, material.price)
 
                         unit_index = model.index(index.row(), 7)
-                        model.setData(unit_index, entity['unit'])
+                        model.setData(unit_index, material.unit)
 
             except IndexError as ie:
                 print(f"Ошибка индекса при обновлении данных: {ie}")
