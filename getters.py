@@ -37,6 +37,13 @@ def get_materials_by_substr(supabase, substr):
     return response.data
 
 
+def get_entity_by_substr(supabase, name_of_table: str, substr):
+    response = supabase.table(name_of_table).select('*').ilike('name', f'%{substr}%').execute()
+    print(response.data)
+
+    return response.data
+
+
 def get_works_by_substr(supabase, substr):
     response = supabase.table('works').select('*').ilike('name', f'%{substr}%').execute()
     print(response.data)

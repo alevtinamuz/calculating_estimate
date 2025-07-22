@@ -1,7 +1,7 @@
 import os
 from supabase import create_client, Client
 
-from PyQt6.QtCore import Qt, QPoint
+from PyQt6.QtCore import Qt, QPoint, QStringListModel
 from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit
 from dotenv import load_dotenv
 
@@ -37,7 +37,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
                 self.search_line_edit = QLineEdit(editor)
                 self.search_line_edit.setPlaceholderText("Поиск...")
-                # self.search_line_edit.textChanged.connect(self.)
+                self.search_line_edit.textChanged.connect(self.filter_items)
                 layout.addWidget(self.search_line_edit)
 
                 combo_container = QWidget(editor)
@@ -47,6 +47,9 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 # Ваши комбобоксы
                 self.main_combo = QComboBox(combo_container)
                 self.sub_combo = QComboBox(combo_container)
+
+                self.main_combo.showPopup()
+                self.sub_combo.showPopup()
 
                 self.main_combo.currentIndexChanged.connect(self.update_sub_combo)
 
@@ -73,6 +76,22 @@ class ComboBoxDelegate(QStyledItemDelegate):
             editor.setMaximum(999999)
 
             return editor
+
+    def filter_items(self, text):
+        """Фильтрует элементы в sub_combo по введенному тексту"""
+        if not hasattr(self, 'sub_combo') or not self.sub_combo.count():
+            return
+
+        # Получаем текущую модель
+        model = self.sub_combo.model()
+
+        # Устанавливаем фильтр для модели
+        if text:
+            self.update_sub_combo(text)
+
+        # Показываем popup, если есть текст
+        if text:
+            self.sub_combo.showPopup()
 
     def adjust_editor_position(self, editor, parent, index):
         """Безопасное позиционирование редактора"""
@@ -120,17 +139,22 @@ class ComboBoxDelegate(QStyledItemDelegate):
         except Exception as e:
             print(f"Data loading error: {e}")
 
-    def update_sub_combo(self):
+    def update_sub_combo(self, text=""):
         """Обновление подчиненного комбобокса"""
         if hasattr(self, 'main_combo') and self.main_combo.count() > 0:
             cat_id = self.main_combo.currentData()
             entity_type = "works" if self.current_col == 1 else "materials"
+            items = []
 
             try:
-                items = self.supabase.table(entity_type) \
-                    .select('*') \
-                    .eq('category_id', cat_id) \
-                    .execute().data
+                if text:
+                    items = getters.get_entity_by_substr(self.supabase, entity_type, text)
+                    print("items", items)
+                if not items:
+                    items = self.supabase.table(entity_type) \
+                        .select('*') \
+                        .eq('category_id', cat_id) \
+                        .execute().data
 
                 self.sub_combo.clear()
                 for item in items:
