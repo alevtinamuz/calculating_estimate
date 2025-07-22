@@ -20,6 +20,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
         self.editor_pos_offset = QPoint(-70, 0)
         self.main_window = main_window
         self.search_line_edit = None
+        self.last_selected_id = None
 
     def createEditor(self, parent, option, index):
         self.current_row = index.row()
@@ -31,6 +32,8 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 editor.setWindowFlag(Qt.WindowType.FramelessWindowHint)
                 editor.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
                 editor.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
+
+                current_value = index.data(Qt.ItemDataRole.DisplayRole)
 
                 layout = QVBoxLayout(editor)
                 layout.setContentsMargins(2, 2, 2, 2)
@@ -48,6 +51,9 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 self.main_combo = QComboBox(combo_container)
                 self.sub_combo = QComboBox(combo_container)
 
+                self.main_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+                self.sub_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
                 self.main_combo.showPopup()
                 self.sub_combo.showPopup()
 
@@ -59,6 +65,9 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
                 # Заполнение данными
                 self.load_initial_data(index.column())
+
+                if current_value:
+                    self.set_current_value(current_value)
 
                 # Позиционирование при создании
                 self.adjust_editor_position(editor, parent, index)
@@ -79,6 +88,18 @@ class ComboBoxDelegate(QStyledItemDelegate):
             editor.setStyleSheet(SPIN_BOX_STYLE)
 
             return editor
+
+    def set_current_value(self, current_value):
+        """Устанавливает текущее значение в комбобоксы"""
+        if not current_value:
+            return
+
+        # Ищем значение в sub_combo
+        for i in range(self.sub_combo.count()):
+            if self.sub_combo.itemText(i) == current_value:
+                self.sub_combo.setCurrentIndex(i)
+                self.last_selected_id = self.sub_combo.currentData()
+                break
 
     def filter_items(self, text):
         """Фильтрует элементы в sub_combo по введенному тексту"""
@@ -240,7 +261,12 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
     def destroyEditor(self, editor, index):
         """Очищаем ссылки при уничтожении редактора"""
+        if hasattr(self, 'search_line_edit'):
+            self.search_line_edit.deleteLater()
+        if hasattr(self, 'main_combo'):
+            self.main_combo.deleteLater()
+        if hasattr(self, 'sub_combo'):
+            self.sub_combo.deleteLater()
+
         self.current_editor = None
-        self.main_combo = None
-        self.sub_combo = None
         super().destroyEditor(editor, index)
