@@ -283,3 +283,19 @@ CONTEXT_MENU_STYLE = f"""
         font-weight: bold;
     }}
 """
+
+SPIN_BOX_STYLE = """
+    QSpinBox {
+        background-color: white;
+        color: black;
+    }
+    
+    QTableWidget QSpinBox {
+        color: black !important;
+    }
+    
+    /* Стиль для текста при редактировании */
+    QAbstractItemView:edit {
+        color: black !important;
+    }
+"""

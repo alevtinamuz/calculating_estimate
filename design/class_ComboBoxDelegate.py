@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 import getters
 from design.classes import WorkItem, MaterialItem
-from design.styles import DROPDOWN_DELEGATE_STYLE
+from design.styles import DROPDOWN_DELEGATE_STYLE, SPIN_BOX_STYLE
 
 
 class ComboBoxDelegate(QStyledItemDelegate):
@@ -64,6 +64,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 self.adjust_editor_position(editor, parent, index)
 
                 self.current_editor = editor
+
                 return editor
 
             except Exception as e:
@@ -75,6 +76,8 @@ class ComboBoxDelegate(QStyledItemDelegate):
             editor.setMinimum(0)
             editor.setMaximum(999999)
 
+            editor.setStyleSheet(SPIN_BOX_STYLE)
+
             return editor
 
     def filter_items(self, text):
@@ -85,13 +88,8 @@ class ComboBoxDelegate(QStyledItemDelegate):
         # Получаем текущую модель
         model = self.sub_combo.model()
 
-        # Устанавливаем фильтр для модели
         if text:
             self.update_sub_combo(text)
-
-        # Показываем popup, если есть текст
-        if text:
-            self.sub_combo.showPopup()
 
     def adjust_editor_position(self, editor, parent, index):
         """Безопасное позиционирование редактора"""
