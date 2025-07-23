@@ -1,13 +1,13 @@
 import os
 from supabase import create_client, Client
 
-from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate
+from PyQt6.QtCore import Qt, QPoint, QStringListModel
+from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit
 from dotenv import load_dotenv
 
 import getters
 from design.classes import WorkItem, MaterialItem
-from design.styles import DROPDOWN_DELEGATE_STYLE
+from design.styles import DROPDOWN_DELEGATE_STYLE, SPIN_BOX_STYLE
 
 
 class ComboBoxDelegate(QStyledItemDelegate):
@@ -19,12 +19,8 @@ class ComboBoxDelegate(QStyledItemDelegate):
         self.current_col = -1
         self.editor_pos_offset = QPoint(-70, 0)
         self.main_window = main_window
-
-        load_dotenv()
-        self.supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY")
-        )
+        self.search_line_edit = None
+        self.last_selected_id = None
 
     def createEditor(self, parent, option, index):
         self.current_row = index.row()
@@ -37,25 +33,47 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 editor.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
                 editor.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
 
-                layout = QHBoxLayout(editor)
+                current_value = index.data(Qt.ItemDataRole.DisplayRole)
+
+                layout = QVBoxLayout(editor)
                 layout.setContentsMargins(2, 2, 2, 2)
 
+                self.search_line_edit = QLineEdit(editor)
+                self.search_line_edit.setPlaceholderText("Поиск...")
+                self.search_line_edit.textChanged.connect(self.filter_items)
+                layout.addWidget(self.search_line_edit)
+
+                combo_container = QWidget(editor)
+                combo_layout = QHBoxLayout(combo_container)
+                combo_layout.setContentsMargins(0, 0, 0, 0)
+
                 # Ваши комбобоксы
-                self.main_combo = QComboBox(editor)
-                self.sub_combo = QComboBox(editor)
+                self.main_combo = QComboBox(combo_container)
+                self.sub_combo = QComboBox(combo_container)
+
+                self.main_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+                self.sub_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+                self.main_combo.showPopup()
+                self.sub_combo.showPopup()
 
                 self.main_combo.currentIndexChanged.connect(self.update_sub_combo)
 
-                layout.addWidget(self.main_combo)
-                layout.addWidget(self.sub_combo)
+                combo_layout.addWidget(self.main_combo)
+                combo_layout.addWidget(self.sub_combo)
+                layout.addWidget(combo_container)
 
                 # Заполнение данными
                 self.load_initial_data(index.column())
+
+                if current_value:
+                    self.set_current_value(current_value)
 
                 # Позиционирование при создании
                 self.adjust_editor_position(editor, parent, index)
 
                 self.current_editor = editor
+
                 return editor
 
             except Exception as e:
@@ -67,7 +85,32 @@ class ComboBoxDelegate(QStyledItemDelegate):
             editor.setMinimum(0)
             editor.setMaximum(999999)
 
+            editor.setStyleSheet(SPIN_BOX_STYLE)
+
             return editor
+
+    def set_current_value(self, current_value):
+        """Устанавливает текущее значение в комбобоксы"""
+        if not current_value:
+            return
+
+        # Ищем значение в sub_combo
+        for i in range(self.sub_combo.count()):
+            if self.sub_combo.itemText(i) == current_value:
+                self.sub_combo.setCurrentIndex(i)
+                self.last_selected_id = self.sub_combo.currentData()
+                break
+
+    def filter_items(self, text):
+        """Фильтрует элементы в sub_combo по введенному тексту"""
+        if not hasattr(self, 'sub_combo') or not self.sub_combo.count():
+            return
+
+        # Получаем текущую модель
+        model = self.sub_combo.model()
+
+        if text:
+            self.update_sub_combo(text)
 
     def adjust_editor_position(self, editor, parent, index):
         """Безопасное позиционирование редактора"""
@@ -106,6 +149,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
         try:
             categories = self.supabase.table(f"{entity_type}_categories").select('*').execute().data
             self.main_combo.clear()
+            self.main_combo.addItem("Все категории", 0)
             for cat in categories:
                 self.main_combo.addItem(cat['name'], cat['id'])
 
@@ -115,19 +159,29 @@ class ComboBoxDelegate(QStyledItemDelegate):
         except Exception as e:
             print(f"Data loading error: {e}")
 
-    def update_sub_combo(self):
+    def update_sub_combo(self, text=""):
         """Обновление подчиненного комбобокса"""
         if hasattr(self, 'main_combo') and self.main_combo.count() > 0:
             cat_id = self.main_combo.currentData()
             entity_type = "works" if self.current_col == 1 else "materials"
+            items = []
 
             try:
-                items = self.supabase.table(entity_type) \
-                    .select('*') \
-                    .eq('category_id', cat_id) \
-                    .execute().data
+                if text:
+                    items = getters.get_entity_by_substr(self.supabase, entity_type, text, cat_id)
+                if not items:
+                    if cat_id:
+                        items = self.supabase.table(entity_type) \
+                            .select('*') \
+                            .eq('category_id', cat_id) \
+                            .execute().data
+                    else:
+                        items = self.supabase.table(entity_type) \
+                            .select('*') \
+                            .execute().data
 
                 self.sub_combo.clear()
+                self.sub_combo.addItem('-', 0)
                 for item in items:
                     self.sub_combo.addItem(item['name'], item['id'])
 
@@ -145,10 +199,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 # Определяем тип сущности (работа или материал)
                 entity_type = "works" if index.column() == 1 else "materials"
                 entities = getters.get_entity_by_id(self.supabase, entity_type, selected_id)
-
-                if not entities:
-                    print(f"Не найдена сущность с ID: {selected_id}")
-                    return
 
                 entity = entities[0]
 
@@ -169,8 +219,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
                     model.setData(unit_index, entity['unit'])
 
                 elif index.column() == 6:  # Обработка материала
+
                     # Находим родительскую работу для этого материала
                     work_row = index.row()
+
                     while work_row >= 0 and not model.index(work_row, 0).data():
                         work_row -= 1
 
@@ -190,10 +242,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
                         # Обновляем ячейки цены и единиц измерения материала
                         price_index = model.index(index.row(), 9)
-                        model.setData(price_index, entity['price'])
+                        model.setData(price_index, material.price)
 
                         unit_index = model.index(index.row(), 7)
-                        model.setData(unit_index, entity['unit'])
+                        model.setData(unit_index, material.unit)
 
             except IndexError as ie:
                 print(f"Ошибка индекса при обновлении данных: {ie}")
@@ -209,7 +261,12 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
     def destroyEditor(self, editor, index):
         """Очищаем ссылки при уничтожении редактора"""
+        if hasattr(self, 'search_line_edit'):
+            self.search_line_edit.deleteLater()
+        if hasattr(self, 'main_combo'):
+            self.main_combo.deleteLater()
+        if hasattr(self, 'sub_combo'):
+            self.sub_combo.deleteLater()
+
         self.current_editor = None
-        self.main_combo = None
-        self.sub_combo = None
         super().destroyEditor(editor, index)

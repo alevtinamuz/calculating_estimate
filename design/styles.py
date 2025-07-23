@@ -192,6 +192,16 @@ QComboBox QAbstractItemView {{
         outline: none;
         font-size: 14px;
     }}
+    
+    QLineEdit {{
+        background-color: {WHITE};
+        color: {BLACK};
+        border: 2px solid {DARK_GRAY};
+        border-radius: 4px;
+        min-height: 30px;
+        font-size: 14px;
+        min-width: 200px;
+    }}
 """
 
 # Стиль для панелей инструментов
@@ -272,4 +282,20 @@ CONTEXT_MENU_STYLE = f"""
         color: {WHITE};
         font-weight: bold;
     }}
+"""
+
+SPIN_BOX_STYLE = """
+    QSpinBox {
+        background-color: white;
+        color: black;
+    }
+    
+    QTableWidget QSpinBox {
+        color: black !important;
+    }
+    
+    /* Стиль для текста при редактировании */
+    QAbstractItemView:edit {
+        color: black !important;
+    }
 """
