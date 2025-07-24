@@ -1,10 +1,12 @@
 import os
+import json
+from datetime import datetime
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QMovie
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel, QHeaderView, QSizePolicy, QHBoxLayout, QComboBox, \
     QTableWidget, QPushButton, QToolButton, QMessageBox, QDialog, QDialogButtonBox, QLineEdit, QDoubleSpinBox, \
-    QFormLayout, QTableWidgetItem, QApplication
+    QFormLayout, QTableWidgetItem, QApplication, QFileDialog, QCheckBox, QProgressDialog, QButtonGroup
 
 import getters
 import setters
@@ -62,12 +64,14 @@ class PageDB(QMainWindow):
 
             if self.current_table in ['works_categories', 'materials_categories']:
                 data = getters.sort_by_id(self.supabase, self.current_table, 'id') 
+                column_order = ['id', 'name']
                 header_names = {
                     'id': 'ID',
                     'name': 'Название категории'
                 }
             else:
                 data = getters.sort_by_id(self.supabase, self.current_table, 'category_id') 
+                column_order = ['id', 'category_id', 'name', 'price', 'unit']
                 header_names = {
                     'id': 'ID',
                     'category_id': 'Категория',
@@ -93,17 +97,19 @@ class PageDB(QMainWindow):
 
             # Устанавливаем размеры таблицы
             self.table_db.setRowCount(len(data))
-            self.table_db.setColumnCount(len(data[0].keys()))
+            self.table_db.setColumnCount(len(column_order))
 
             # Устанавливаем заголовки
-            headers = [header_names.get(key, key) for key in data[0].keys()]
+            headers = [header_names[key] for key in column_order]
             self.table_db.setHorizontalHeaderLabels(headers)
 
             # Заполняем таблицу данными
             for row_idx, row_data in enumerate(data):
-                for col_idx, (key, value) in enumerate(row_data.items()):
+                for col_idx, column_name in enumerate(column_order):
+                    value = row_data[column_name]
+                    
                     # Заменяем category_id на название категории, но сохраняем оригинальный ID
-                    if key == 'category_id' and self.current_table in ['works', 'materials']:
+                    if column_name == 'category_id' and self.current_table in ['works', 'materials']:
                         original_id = value
                         value = category_names.get(str(value), str(value))
                         item = QTableWidgetItem(str(value))
@@ -151,7 +157,7 @@ class PageDB(QMainWindow):
             for btn in buttons:
                 btn.hide()
 
-    def add_row(self):
+    def add_row(self,row):
         """Обработка редактирования строки с формой из нескольких полей"""
         # Определяем заголовок и текущие значения
         if self.current_table in ['works', 'materials']:
@@ -399,7 +405,231 @@ class PageDB(QMainWindow):
             except Exception as e:
                 self.label.setText(f"Ошибка удаления: {str(e)}")
                 print('Error:', e)
+                
+    def backup_database_to_file(self):
+        try:
+            # Создаем диалог выбора таблиц
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Выбор таблиц для выгрузки")
+            dialog.setFixedSize(300, 200)
+            
+            layout = QVBoxLayout()
+            layout.addWidget(QLabel("Выберите таблицы для выгрузки:"))
+            
+            # Чекбоксы для таблиц
+            tables = {
+                'works': QCheckBox("Работы"),
+                'materials': QCheckBox("Материалы"),
+                'works_categories': QCheckBox("Категории работ"),
+                'materials_categories': QCheckBox("Категории материалов")
+            }
+            
+            # Включаем только материалы по умолчанию
+            for name, checkbox in tables.items():
+                layout.addWidget(checkbox)
+            
+            # Кнопки
+            btn_ok = QPushButton("Выгрузить")
+            btn_cancel = QPushButton("Отмена")
+            
+            btn_ok.clicked.connect(dialog.accept)
+            btn_cancel.clicked.connect(dialog.reject)
+            
+            layout.addWidget(btn_ok)
+            layout.addWidget(btn_cancel)
+            dialog.setLayout(layout)
+            
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+                
+            selected_tables = [name for name, checkbox in tables.items() if checkbox.isChecked()]
+            if not selected_tables:
+                QMessageBox.warning(self, "Ошибка", "Не выбрано ни одной таблицы!")
+                return
+            
+            # Создаем прогресс-бар с диапазоном 0-100
+            progress = QProgressDialog("Подготовка к выгрузке...", "Отмена", 0, 100, self)
+            progress.setWindowModality(Qt.WindowModality.WindowModal)
+            progress.setWindowTitle("Прогресс выгрузки")
+            progress.setAutoClose(True)
+            progress.setMinimumDuration(0)
+            progress.setValue(0)
+            QApplication.processEvents()
+            
+            # Подготовка данных
+            data = {'metadata': {'backup_date': datetime.now().isoformat(), 'tables': selected_tables}}
+            total_tables = len(selected_tables)
+            
+            for i, table in enumerate(selected_tables):
+                # Рассчитываем текущий прогресс (0-70% для загрузки таблиц)
+                current_progress = int((i / total_tables) * 70)
+                progress.setLabelText(f"Выгрузка таблицы: {table} ({i+1}/{total_tables})")
+                progress.setValue(current_progress)
+                QApplication.processEvents()
+                
+                if progress.wasCanceled():
+                    return
+                    
+                try:
+                    # Получаем данные таблицы
+                    data[table] = getters.get_all_table(self.supabase, table)
+                    
+                    # Плавно увеличиваем прогресс после загрузки каждой таблицы
+                    progress.setValue(current_progress + int(70 / total_tables))
+                    QApplication.processEvents()
+                    
+                except Exception as e:
+                    QMessageBox.critical(self, "Ошибка", f"Ошибка при выгрузке таблицы {table}:\n{str(e)}")
+                    return
+            
+            # Этап сохранения в файл (70-100%)
+            progress.setLabelText("Сохранение в файл...")
+            progress.setValue(70)
+            QApplication.processEvents()
+            
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, 
+                "Сохранить резервную копию БД",
+                f"backup_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                "JSON Files (*.json)"
+            )
+            
+            if file_path:
+                try:
+                    with open(file_path, 'w', encoding='utf-8') as file:
+                        json.dump(data, file, ensure_ascii=False, indent=2)
+                    
+                    # Завершаем прогресс
+                    progress.setValue(100)
+                    QMessageBox.information(self, "Успех", f"Резервная копия сохранена в:\n{file_path}")
+                    
+                except Exception as e:
+                    progress.cancel()
+                    QMessageBox.critical(self, "Ошибка", f"Ошибка при сохранении файла:\n{str(e)}")
+                    
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить резервную копию:\n{str(e)}")
 
+    def restore_database_from_file(self):
+        try:
+            # Выбор файла
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, 
+                "Выберите файл резервной копии",
+                "",
+                "JSON Files (*.json)"
+            )
+            
+            if not file_path:
+                return
+                
+            # Чтение файла
+            with open(file_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+                
+            if 'metadata' not in data or 'tables' not in data['metadata']:
+                QMessageBox.critical(self, "Ошибка", "Неверный формат файла резервной копии!")
+                return
+                
+            available_tables = [t for t in data['metadata']['tables'] if t in data]
+            if not available_tables:
+                QMessageBox.critical(self, "Ошибка", "В файле нет данных для восстановления!")
+                return
+                
+            # Диалог выбора таблиц
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Выбор таблиц для восстановления")
+            dialog.setFixedSize(300, 200)
+            
+            layout = QVBoxLayout()
+            layout.addWidget(QLabel("Выберите таблицы для восстановления:"))
+            
+            tables = {}
+            for table in available_tables:
+                checkbox = QCheckBox(table)
+                checkbox.setChecked(True)
+                tables[table] = checkbox
+                layout.addWidget(checkbox)
+            
+            btn_ok = QPushButton("Восстановить")
+            btn_cancel = QPushButton("Отмена")
+            
+            btn_ok.clicked.connect(dialog.accept)
+            btn_cancel.clicked.connect(dialog.reject)
+            
+            layout.addWidget(btn_ok)
+            layout.addWidget(btn_cancel)
+            dialog.setLayout(layout)
+            
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+                
+            selected_tables = [name for name, checkbox in tables.items() if checkbox.isChecked()]
+            if not selected_tables:
+                QMessageBox.warning(self, "Ошибка", "Не выбрано ни одной таблицы!")
+                return
+                
+            # Подтверждение
+            reply = QMessageBox.question(
+                self,
+                "Подтверждение",
+                "Вы уверены, что хотите восстановить выбранные таблицы?\nТекущие данные в этих таблицах будут перезаписаны!",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+                
+            # Прогресс-бар
+            progress = QProgressDialog("Восстановление данных...", "Отмена", 0, len(selected_tables), self)
+            progress.setWindowModality(Qt.WindowModality.WindowModal)
+            progress.setWindowTitle("Прогресс восстановления")
+            progress.setMinimumDuration(0)
+            
+            try:
+                for i, table in enumerate(selected_tables):
+                    progress.setLabelText(f"Восстановление таблицы: {table}")
+                    progress.setValue(i)
+                    QApplication.processEvents()
+                    
+                    if progress.wasCanceled():
+                        return
+                        
+                    # Очищаем таблицу перед восстановлением
+                    setters.clear_table(self.supabase, table)
+                    
+                    items = data[table]
+                    batch_size = 100  # Оптимальный размер пакета
+                    
+                    for j in range(0, len(items), batch_size):
+                        batch = items[j:j+batch_size]
+                        
+                        if table == 'works':
+                            setters.batch_insert_works_fast(self.supabase, batch)
+                        elif table == 'materials':
+                            setters.batch_insert_materials_fast(self.supabase, batch)
+                        elif table == 'works_categories':
+                            setters.batch_insert_work_categories_fast(self.supabase, batch)
+                        elif table == 'materials_categories':
+                            setters.batch_insert_material_categories_fast(self.supabase, batch)
+                        
+                        # Обновляем прогресс внутри таблицы
+                        progress.setLabelText(f"{table}: {min(j+batch_size, len(items))}/{len(items)}")
+                        QApplication.processEvents()
+                        if progress.wasCanceled():
+                            return
+                
+                progress.setValue(len(selected_tables))
+                QMessageBox.information(self, "Успех", "Данные успешно восстановлены!")
+                self.load_data_from_supabase()
+                
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Ошибка восстановления:\n{str(e)}")
+                return
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось восстановить данные:\n{str(e)}")
+    
     def create_edit_btn(self, row_idx=None):
         edit_btn = QToolButton()
         edit_btn.setObjectName("editToolButton")
@@ -430,18 +660,32 @@ class PageDB(QMainWindow):
 
     def create_refresh_button(self):
         # Кнопка загрузки данных
-        refresh_button = QPushButton("Обновить данные")
+        refresh_button = QPushButton("Обновить")
         refresh_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
         refresh_button.clicked.connect(self.load_data_from_supabase)
 
         return refresh_button
 
     def create_add_button(self, row_idx=None):
-        add_button = QPushButton("Добавить данные")
+        add_button = QPushButton("Добавить")
         add_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
         add_button.clicked.connect(lambda _, r=row_idx: self.add_row(r))
 
         return add_button
+    
+    def create_save_file_button(self):
+        save_file_button = QPushButton("Выгрузить")
+        save_file_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
+        save_file_button.clicked.connect(self.backup_database_to_file)
+        
+        return save_file_button
+
+    def create_load_file_button(self):
+        load_file_button = QPushButton("Загрузить")
+        load_file_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
+        load_file_button.clicked.connect(self.restore_database_from_file)
+        
+        return load_file_button
 
     def create_search_widget(self):
         self.search_input = QLineEdit()
@@ -578,6 +822,14 @@ class PageDB(QMainWindow):
 
         # Растягивающийся элемент между комбобоксом и кнопкой
         main_layout.addStretch()
+        
+        load_file_button = self.create_load_file_button()
+        load_file_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        main_layout.addWidget(load_file_button)
+        
+        save_file_button = self.create_save_file_button()
+        save_file_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        main_layout.addWidget(save_file_button)
 
         add_button = self.create_add_button()
         add_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
