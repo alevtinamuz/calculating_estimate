@@ -1,6 +1,8 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QMarginsF, QPoint, QRectF
+from PyQt6.QtGui import QPageSize, QPainter, QPageLayout, QFont
+from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QTableWidget, QTableWidgetItem, QHBoxLayout, \
-    QPushButton, QMainWindow
+    QPushButton, QMainWindow, QFileDialog
 
 from design.class_ComboBoxDelegate import ComboBoxDelegate
 from design.classes import MaterialItem, WorkItem
@@ -102,6 +104,13 @@ class PageEstimate(QMainWindow):
         except Exception as e:
             self.show_error("Ошибка очистки таблицы", str(e))
 
+    def export_to_pdf(self):
+        """Обработчик экспорта в PDF"""
+        try:
+            self.table_manager.export_to_pdf()
+        except Exception as e:
+            self.show_error("Ошибка экспорта в PDF", str(e))
+
     def create_button_panel(self):
         """Создает кнопки для добавления работ и материалов"""
         button_panel = QWidget()
@@ -112,12 +121,14 @@ class PageEstimate(QMainWindow):
         delete_work_btn = self.create_button("Удалить работу", lambda: self.delete_selected_work())
         delete_material_btn = self.create_button("Удалить материал", lambda: self.delete_selected_material())
         clear_table_btn = self.create_button("Очистить таблицу", lambda: self.clear_table())
+        export_pdf_btn = self.create_button("Экспорт в PDF", lambda: self.export_to_pdf())
 
         button_layout.addWidget(add_work_btn)
         button_layout.addWidget(add_material_btn)
         button_layout.addWidget(delete_work_btn)
         button_layout.addWidget(delete_material_btn)
         button_layout.addWidget(clear_table_btn)
+        button_layout.addWidget(export_pdf_btn)
 
         return button_panel
 
@@ -502,3 +513,88 @@ class EstimateTableManager:
             QMessageBox.critical(self.page_estimate, "Ошибка", "Не удалось очистить таблицу")
         finally:
             self.table.setUpdatesEnabled(True)
+
+    def export_to_pdf(self):
+        """Экспортирует таблицу в PDF с заголовком и горизонтальными шапками"""
+        try:
+
+            # Диалог выбора файла
+            file_path, _ = QFileDialog.getSaveFileName(
+                self.page_estimate,
+                "Сохранить как PDF",
+                "Смета.pdf",
+                "PDF Files (*.pdf)"
+            )
+
+            if not file_path:
+                return
+
+            # Настройка принтера
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printer.setOutputFileName(file_path)
+            printer.setResolution(120)
+
+            # Устанавливаем поля страницы
+            layout = QPageLayout()
+            layout.setUnits(QPageLayout.Unit.Millimeter)
+            layout.setMargins(QMarginsF(15, 20, 15, 15))
+            printer.setPageLayout(layout)
+
+            painter = QPainter()
+            if not painter.begin(printer):
+                raise Exception("Не удалось начать печать")
+
+            self.table.setStyleSheet(DATA_TABLE_STYLE)
+
+            title = "Смета работ и материалов"
+            font = QFont("Arial", 14, QFont.Weight.Bold)
+            painter.setFont(font)
+
+            # Получаем размеры страницы
+            page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
+
+            title_rect = QRectF(0, 0, page_rect.width(), 50)
+            painter.drawText(title_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, title)
+
+            self.table.horizontalHeader().setVisible(True)
+            table_width = self.table.viewport().width()
+            table_height = self.table.viewport().height() + self.table.horizontalHeader().height()
+
+            # Рассчитываем масштаб
+            scale = min(
+                (page_rect.width() - 40) / table_width,
+                (page_rect.height() - title_rect.height() - 40) / table_height
+            )
+
+            # Центрируем таблицу
+            painter.translate(
+                (page_rect.width() - table_width * scale) / 2,
+                title_rect.height() + 30
+            )
+            painter.scale(scale, scale)
+
+            header = self.table.horizontalHeader()
+            header.render(painter, QPoint(0, 0))
+
+            painter.translate(0, header.height())
+            self.table.viewport().render(painter)
+
+            # Восстанавливаем исходное состояние
+            painter.end()
+            self.table.setStyleSheet(DATA_TABLE_STYLE)
+
+            QMessageBox.information(
+                self.page_estimate,
+                "Успех",
+                f"PDF успешно сохранен:\n{file_path}"
+            )
+
+        except Exception as e:
+            # Гарантированно восстанавливаем стили
+            self.table.setStyleSheet(DATA_TABLE_STYLE)
+            QMessageBox.critical(
+                self.page_estimate,
+                "Ошибка",
+                f"Ошибка при сохранении PDF:\n{str(e)}"
+            )

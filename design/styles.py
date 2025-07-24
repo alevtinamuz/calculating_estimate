@@ -56,8 +56,7 @@ PRIMARY_BUTTON_STYLE = f"""
 DATA_TABLE_STYLE = f"""
     QTableWidget {{
         background-color: {WHITE};
-        border: 2px solid {DARK_GRAY};
-        border-radius: 5px;
+        border: none;
         color: {BLACK};
         gridline-color: {DARK_GRAY};
         outline: 0;
