@@ -2,7 +2,8 @@ import os
 from supabase import create_client, Client
 
 from PyQt6.QtCore import Qt, QPoint, QStringListModel
-from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit
+from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit, \
+    QListWidget, QListWidgetItem
 from dotenv import load_dotenv
 
 import getters
@@ -48,19 +49,16 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 combo_layout.setContentsMargins(0, 0, 0, 0)
 
                 # Ваши комбобоксы
-                self.main_combo = QComboBox(combo_container)
-                self.sub_combo = QComboBox(combo_container)
+                self.main_list = QListWidget(combo_container)
+                self.sub_list = QListWidget(combo_container)
 
-                self.main_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-                self.sub_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+                # self.main_list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+                # self.sub_list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-                self.main_combo.showPopup()
-                self.sub_combo.showPopup()
+                self.main_list.itemClicked.connect(self.update_sub_list)
 
-                self.main_combo.currentIndexChanged.connect(self.update_sub_combo)
-
-                combo_layout.addWidget(self.main_combo)
-                combo_layout.addWidget(self.sub_combo)
+                combo_layout.addWidget(self.main_list)
+                combo_layout.addWidget(self.sub_list)
                 layout.addWidget(combo_container)
 
                 # Заполнение данными
@@ -94,23 +92,26 @@ class ComboBoxDelegate(QStyledItemDelegate):
         if not current_value:
             return
 
-        # Ищем значение в sub_combo
-        for i in range(self.sub_combo.count()):
-            if self.sub_combo.itemText(i) == current_value:
-                self.sub_combo.setCurrentIndex(i)
-                self.last_selected_id = self.sub_combo.currentData()
+        # Ищем значение в sub_list
+        for i in range(self.sub_list.count()):
+            item = self.sub_list.item(i)
+            # Получаем текст (аналог .currentText() в QComboBox)
+            item_text = item.text()
+            # Получаем сохранённый id (аналог .currentData() в QComboBox)
+            item_id = item.data(Qt.ItemDataRole.UserRole)
+
+            if item_text == current_value:
+                self.sub_list.setCurrentRow(i)
+                self.last_selected_id = item_id
                 break
 
     def filter_items(self, text):
-        """Фильтрует элементы в sub_combo по введенному тексту"""
-        if not hasattr(self, 'sub_combo') or not self.sub_combo.count():
+        """Фильтрует элементы в sub_list по введенному тексту"""
+        if not hasattr(self, 'sub_list') or not self.sub_list.count():
             return
 
-        # Получаем текущую модель
-        model = self.sub_combo.model()
-
         if text:
-            self.update_sub_combo(text)
+            self.update_sub_list(text)
 
     def adjust_editor_position(self, editor, parent, index):
         """Безопасное позиционирование редактора"""
@@ -148,21 +149,33 @@ class ComboBoxDelegate(QStyledItemDelegate):
         entity_type = "works" if column == 1 else "materials"
         try:
             categories = self.supabase.table(f"{entity_type}_categories").select('*').execute().data
-            self.main_combo.clear()
-            self.main_combo.addItem("Все категории", 0)
+            self.main_list.clear()
+            all_categories_item = QListWidgetItem("Все категории")
+            all_categories_item.setData(Qt.ItemDataRole.UserRole, 0)
+            self.main_list.addItem(all_categories_item)
+
             for cat in categories:
-                self.main_combo.addItem(cat['name'], cat['id'])
+                item = QListWidgetItem(cat['name'])
+                item.setData(Qt.ItemDataRole.UserRole, cat['id'])  # Сохраняем id в UserRole
+                self.main_list.addItem(item)
+
+            self.main_list.setCurrentRow(0)
 
             # Загружаем подчиненные элементы
-            self.update_sub_combo()
+            self.update_sub_list()
 
         except Exception as e:
             print(f"Data loading error: {e}")
 
-    def update_sub_combo(self, text=""):
+    def update_sub_list(self, text=""):
         """Обновление подчиненного комбобокса"""
-        if hasattr(self, 'main_combo') and self.main_combo.count() > 0:
-            cat_id = self.main_combo.currentData()
+        if hasattr(self, 'main_list') and self.main_list.count() > 0:
+            cat_item = self.main_list.currentItem()
+            # Получаем текст (аналог .currentText() в QComboBox)
+            cat_text = cat_item.text()
+            # Получаем сохранённый id (аналог .currentData() в QComboBox)
+            cat_id = cat_item.data(Qt.ItemDataRole.UserRole)
+
             entity_type = "works" if self.current_col == 1 else "materials"
             items = []
 
@@ -180,10 +193,16 @@ class ComboBoxDelegate(QStyledItemDelegate):
                             .select('*') \
                             .execute().data
 
-                self.sub_combo.clear()
-                self.sub_combo.addItem('-', 0)
+                self.sub_list.clear()
+                empty_el = QListWidgetItem("-")
+                empty_el.setData(Qt.ItemDataRole.UserRole, 0)
+                self.sub_list.addItem(empty_el)
+
                 for item in items:
-                    self.sub_combo.addItem(item['name'], item['id'])
+                    el = QListWidgetItem(item['name'])
+                    el.setData(Qt.ItemDataRole.UserRole, item['id'])  # Сохраняем id в UserRole
+                    self.sub_list.addItem(el)
+                    # self.sub_list.addItem(item['name'], item['id'])
 
             except Exception as e:
                 print(f"Sub-combo update error: {e}")
@@ -191,8 +210,14 @@ class ComboBoxDelegate(QStyledItemDelegate):
     def setModelData(self, editor, model, index):
         """Сохраняет выбранное значение в модель"""
         if index.column() in [1, 6]:  # Обрабатываем только колонки с названиями
-            selected_id = self.sub_combo.currentData()
-            selected_text = self.sub_combo.currentText()
+
+            if not self.sub_list.currentItem():
+                self.sub_list.setCurrentRow(0)
+
+            selected_item = self.sub_list.currentItem()
+            selected_text = selected_item.text()
+            selected_id = selected_item.data(Qt.ItemDataRole.UserRole)
+
             model.setData(index, selected_text)
 
             try:

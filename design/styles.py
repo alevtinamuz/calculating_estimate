@@ -202,6 +202,13 @@ QComboBox QAbstractItemView {{
         font-size: 14px;
         min-width: 200px;
     }}
+    
+    QListWidget {{
+        background-color: {WHITE};
+        color: {BLACK};
+        font-size: 14px;
+        min-width: 200px;
+    }}
 """
 
 # Стиль для панелей инструментов
