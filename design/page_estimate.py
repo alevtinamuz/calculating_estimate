@@ -95,6 +95,13 @@ class PageEstimate(QMainWindow):
         except Exception as e:
             self.show_error("Не удалось удалить материал", str(e))
 
+    def clear_table(self):
+        """Обработчик очистки таблицы"""
+        try:
+            self.table_manager.clear_all_data()
+        except Exception as e:
+            self.show_error("Ошибка очистки таблицы", str(e))
+
     def create_button_panel(self):
         """Создает кнопки для добавления работ и материалов"""
         button_panel = QWidget()
@@ -104,11 +111,13 @@ class PageEstimate(QMainWindow):
         add_material_btn = self.create_button("Добавить материал", lambda: self.add_row_material())
         delete_work_btn = self.create_button("Удалить работу", lambda: self.delete_selected_work())
         delete_material_btn = self.create_button("Удалить материал", lambda: self.delete_selected_material())
+        clear_table_btn = self.create_button("Очистить таблицу", lambda: self.clear_table())
 
         button_layout.addWidget(add_work_btn)
         button_layout.addWidget(add_material_btn)
         button_layout.addWidget(delete_work_btn)
         button_layout.addWidget(delete_material_btn)
+        button_layout.addWidget(clear_table_btn)
 
         return button_panel
 
@@ -465,3 +474,31 @@ class EstimateTableManager:
             item = self.table.item(start_row, 0)
             if item:
                 item.setText(str(i + 1))
+
+    def clear_all_data(self):
+        """Полностью очищает таблицу и модель"""
+        reply = QMessageBox.question(
+            self.page_estimate,
+            "Подтверждение",
+            "Вы уверены, что хотите полностью очистить таблицу? Все данные будут удалены.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.No:
+            return
+
+        try:
+            self.table.setUpdatesEnabled(False)
+
+            # Очищаем таблицу
+            self.table.setRowCount(0)
+
+            # Очищаем модель
+            self.works.clear()
+            self.current_row_mapping.clear()
+
+        except Exception as e:
+            print(f"Ошибка при очистке таблицы: {e}")
+            QMessageBox.critical(self.page_estimate, "Ошибка", "Не удалось очистить таблицу")
+        finally:
+            self.table.setUpdatesEnabled(True)
