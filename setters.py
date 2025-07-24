@@ -215,3 +215,17 @@ def batch_insert_material_categories_fast(supabase, items):
     """Быстрая пакетная вставка категорий материалов"""
     data = [{'name': item['name']} for item in items]
     supabase.table('materials_categories').insert(data, returning='minimal').execute()
+    
+def batch_insert_work_categories_with_ids(supabase, items):
+    """Пакетная вставка категорий работ с сохранением ID"""
+    response = supabase.rpc('batch_insert_work_categories_with_ids', {
+        'items': items
+    }).execute()
+    return response
+
+def batch_insert_material_categories_with_ids(supabase, items):
+    """Пакетная вставка категорий материалов с сохранением ID"""
+    response = supabase.rpc('batch_insert_material_categories_with_ids', {
+        'items': items
+    }).execute()
+    return response

@@ -13,6 +13,7 @@ import setters
 from design.styles import LABEL_STYLE, TOOL_PANEL_STYLE, DROPDOWN_STYLE, DATA_TABLE_STYLE, PRIMARY_BUTTON_STYLE, \
     ACTION_BUTTONS_STYLE, SEARCH_STYLE
 
+BACKUP_VERSION = "1.0"
 
 class PageDB(QMainWindow):
     def __init__(self, supabase):
@@ -407,25 +408,25 @@ class PageDB(QMainWindow):
                 print('Error:', e)
                 
     def backup_database_to_file(self):
+        """Выгрузка данных с группировкой по связанным таблицам"""
         try:
-            # Создаем диалог выбора таблиц
+            # Создаем диалог выбора групп таблиц
             dialog = QDialog(self)
-            dialog.setWindowTitle("Выбор таблиц для выгрузки")
+            dialog.setWindowTitle("Выбор данных для выгрузки")
             dialog.setFixedSize(300, 200)
             
             layout = QVBoxLayout()
-            layout.addWidget(QLabel("Выберите таблицы для выгрузки:"))
+            layout.addWidget(QLabel("Выберите данные для выгрузки:"))
             
-            # Чекбоксы для таблиц
-            tables = {
-                'works': QCheckBox("Работы"),
-                'materials': QCheckBox("Материалы"),
-                'works_categories': QCheckBox("Категории работ"),
-                'materials_categories': QCheckBox("Категории материалов")
+            # Группы таблиц (только полные связанные группы)
+            table_groups = {
+                'works': QCheckBox("Работы с категориями работ"),
+                'materials': QCheckBox("Материалы с категориями материалов")
             }
             
-            # Включаем только материалы по умолчанию
-            for name, checkbox in tables.items():
+            # Включаем все группы по умолчанию
+            for checkbox in table_groups.values():
+                checkbox.setChecked(True)
                 layout.addWidget(checkbox)
             
             # Кнопки
@@ -442,75 +443,80 @@ class PageDB(QMainWindow):
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
                 
-            selected_tables = [name for name, checkbox in tables.items() if checkbox.isChecked()]
-            if not selected_tables:
-                QMessageBox.warning(self, "Ошибка", "Не выбрано ни одной таблицы!")
+            selected_groups = [name for name, checkbox in table_groups.items() if checkbox.isChecked()]
+            if not selected_groups:
+                QMessageBox.warning(self, "Ошибка", "Не выбрано ни одной группы данных!")
                 return
             
-            # Создаем прогресс-бар с диапазоном 0-100
-            progress = QProgressDialog("Подготовка к выгрузке...", "Отмена", 0, 100, self)
+            # Подготовка данных
+            data = {
+                'metadata': {
+                    'backup_date': datetime.now().isoformat(),
+                    'version': BACKUP_VERSION,
+                    'tables': selected_groups
+                }
+            }
+            
+            # Прогресс-бар
+            progress = QProgressDialog("Подготовка к выгрузке...", "Отмена", 0, len(selected_groups)*2, self)
             progress.setWindowModality(Qt.WindowModality.WindowModal)
             progress.setWindowTitle("Прогресс выгрузки")
-            progress.setAutoClose(True)
             progress.setMinimumDuration(0)
             progress.setValue(0)
             QApplication.processEvents()
             
-            # Подготовка данных
-            data = {'metadata': {'backup_date': datetime.now().isoformat(), 'tables': selected_tables}}
-            total_tables = len(selected_tables)
-            
-            for i, table in enumerate(selected_tables):
-                # Рассчитываем текущий прогресс (0-70% для загрузки таблиц)
-                current_progress = int((i / total_tables) * 70)
-                progress.setLabelText(f"Выгрузка таблицы: {table} ({i+1}/{total_tables})")
-                progress.setValue(current_progress)
-                QApplication.processEvents()
+            try:
+                for group in selected_groups:
+                    if group == 'works':
+                        # Выгружаем категории работ
+                        progress.setLabelText("Выгрузка категорий работ...")
+                        data['works_categories'] = getters.get_all_table(self.supabase, 'works_categories')
+                        progress.setValue(progress.value() + 1)
+                        
+                        # Выгружаем работы
+                        progress.setLabelText("Выгрузка работ...")
+                        data['works'] = getters.get_all_table(self.supabase, 'works')
+                        progress.setValue(progress.value() + 1)
+                        
+                    elif group == 'materials':
+                        # Выгружаем категории материалов
+                        progress.setLabelText("Выгрузка категорий материалов...")
+                        data['materials_categories'] = getters.get_all_table(self.supabase, 'materials_categories')
+                        progress.setValue(progress.value() + 1)
+                        
+                        # Выгружаем материалы
+                        progress.setLabelText("Выгрузка материалов...")
+                        data['materials'] = getters.get_all_table(self.supabase, 'materials')
+                        progress.setValue(progress.value() + 1)
+                    
+                    if progress.wasCanceled():
+                        return
                 
-                if progress.wasCanceled():
-                    return
-                    
-                try:
-                    # Получаем данные таблицы
-                    data[table] = getters.get_all_table(self.supabase, table)
-                    
-                    # Плавно увеличиваем прогресс после загрузки каждой таблицы
-                    progress.setValue(current_progress + int(70 / total_tables))
-                    QApplication.processEvents()
-                    
-                except Exception as e:
-                    QMessageBox.critical(self, "Ошибка", f"Ошибка при выгрузке таблицы {table}:\n{str(e)}")
-                    return
-            
-            # Этап сохранения в файл (70-100%)
-            progress.setLabelText("Сохранение в файл...")
-            progress.setValue(70)
-            QApplication.processEvents()
-            
-            file_path, _ = QFileDialog.getSaveFileName(
-                self, 
-                "Сохранить резервную копию БД",
-                f"backup_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
-                "JSON Files (*.json)"
-            )
-            
-            if file_path:
-                try:
+                # Сохранение в файл
+                progress.setLabelText("Сохранение в файл...")
+                file_path, _ = QFileDialog.getSaveFileName(
+                    self, 
+                    "Сохранить резервную копию БД",
+                    f"backup_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                    "JSON Files (*.json)"
+                )
+                
+                if file_path:
                     with open(file_path, 'w', encoding='utf-8') as file:
                         json.dump(data, file, ensure_ascii=False, indent=2)
                     
-                    # Завершаем прогресс
-                    progress.setValue(100)
+                    progress.setValue(len(selected_groups)*2)
                     QMessageBox.information(self, "Успех", f"Резервная копия сохранена в:\n{file_path}")
                     
-                except Exception as e:
-                    progress.cancel()
-                    QMessageBox.critical(self, "Ошибка", f"Ошибка при сохранении файла:\n{str(e)}")
-                    
+            except Exception as e:
+                progress.cancel()
+                QMessageBox.critical(self, "Ошибка", f"Ошибка при выгрузке данных:\n{str(e)}")
+                
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить резервную копию:\n{str(e)}")
 
     def restore_database_from_file(self):
+        """Восстановление данных с учетом связей между таблицами"""
         try:
             # Выбор файла
             file_path, _ = QFileDialog.getOpenFileName(
@@ -523,7 +529,7 @@ class PageDB(QMainWindow):
             if not file_path:
                 return
                 
-            # Чтение файла
+            # Чтение и проверка файла
             with open(file_path, 'r', encoding='utf-8') as file:
                 data = json.load(file)
                 
@@ -531,24 +537,30 @@ class PageDB(QMainWindow):
                 QMessageBox.critical(self, "Ошибка", "Неверный формат файла резервной копии!")
                 return
                 
-            available_tables = [t for t in data['metadata']['tables'] if t in data]
-            if not available_tables:
-                QMessageBox.critical(self, "Ошибка", "В файле нет данных для восстановления!")
+            # Доступные группы для восстановления (только полные связанные группы)
+            available_groups = []
+            if 'works' in data['metadata']['tables'] and 'works_categories' in data and 'works' in data:
+                available_groups.append(('works', "Работы с категориями"))
+            if 'materials' in data['metadata']['tables'] and 'materials_categories' in data and 'materials' in data:
+                available_groups.append(('materials', "Материалы с категориями"))
+                
+            if not available_groups:
+                QMessageBox.critical(self, "Ошибка", "В файле нет полных групп данных для восстановления!")
                 return
                 
-            # Диалог выбора таблиц
+            # Диалог выбора групп
             dialog = QDialog(self)
-            dialog.setWindowTitle("Выбор таблиц для восстановления")
+            dialog.setWindowTitle("Выбор данных для восстановления")
             dialog.setFixedSize(300, 200)
             
             layout = QVBoxLayout()
-            layout.addWidget(QLabel("Выберите таблицы для восстановления:"))
+            layout.addWidget(QLabel("Выберите группы данных для восстановления:"))
             
-            tables = {}
-            for table in available_tables:
-                checkbox = QCheckBox(table)
+            checkboxes = {}
+            for group_id, group_name in available_groups:
+                checkbox = QCheckBox(group_name)
                 checkbox.setChecked(True)
-                tables[table] = checkbox
+                checkboxes[group_id] = checkbox
                 layout.addWidget(checkbox)
             
             btn_ok = QPushButton("Восстановить")
@@ -564,16 +576,16 @@ class PageDB(QMainWindow):
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
                 
-            selected_tables = [name for name, checkbox in tables.items() if checkbox.isChecked()]
-            if not selected_tables:
-                QMessageBox.warning(self, "Ошибка", "Не выбрано ни одной таблицы!")
+            selected_groups = [group_id for group_id, checkbox in checkboxes.items() if checkbox.isChecked()]
+            if not selected_groups:
+                QMessageBox.warning(self, "Ошибка", "Не выбрано ни одной группы данных!")
                 return
                 
             # Подтверждение
             reply = QMessageBox.question(
                 self,
                 "Подтверждение",
-                "Вы уверены, что хотите восстановить выбранные таблицы?\nТекущие данные в этих таблицах будут перезаписаны!",
+                "Вы уверены, что хотите восстановить выбранные данные?\nТекущие данные в этих таблицах будут перезаписаны!",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             
@@ -581,55 +593,60 @@ class PageDB(QMainWindow):
                 return
                 
             # Прогресс-бар
-            progress = QProgressDialog("Восстановление данных...", "Отмена", 0, len(selected_tables), self)
+            progress = QProgressDialog("Восстановление данных...", "Отмена", 0, len(selected_groups)*2, self)
             progress.setWindowModality(Qt.WindowModality.WindowModal)
             progress.setWindowTitle("Прогресс восстановления")
             progress.setMinimumDuration(0)
             
             try:
-                for i, table in enumerate(selected_tables):
-                    progress.setLabelText(f"Восстановление таблицы: {table}")
-                    progress.setValue(i)
-                    QApplication.processEvents()
+                for group in selected_groups:
+                    if group == 'works':
+                        # Восстанавливаем категории работ с оригинальными ID
+                        progress.setLabelText("Восстановление категорий работ...")
+                        setters.clear_table(self.supabase, 'works_categories')
+                        
+                        categories_data = [{'id': c['id'], 'name': c['name']} for c in data['works_categories']]
+                        
+                        setters.batch_insert_work_categories_with_ids(self.supabase, categories_data)
+                            
+                        progress.setValue(progress.value() + 1)
+
+                        # Восстанавливаем работы
+                        progress.setLabelText("Восстановление работ...")
+                        setters.clear_table(self.supabase, 'works')
+                        setters.batch_insert_works_fast(self.supabase, data['works'])
+                        progress.setValue(progress.value() + 1)
+                        
+                    elif group == 'materials':
+                        # Восстанавливаем категории материалов с оригинальными ID
+                        progress.setLabelText("Восстановление категорий материалов...")
+                        setters.clear_table(self.supabase, 'materials_categories')
+                        
+                        categories_data = [{'id': c['id'], 'name': c['name']} for c in data['materials_categories']]
+                        
+                        setters.batch_insert_material_categories_with_ids(self.supabase, categories_data)
+                            
+                        progress.setValue(progress.value() + 1)
+                        
+                        # Восстанавливаем материалы
+                        progress.setLabelText("Восстановление материалов...")
+                        setters.clear_table(self.supabase, 'materials')
+                        setters.batch_insert_materials_fast(self.supabase, data['materials'])
+                        progress.setValue(progress.value() + 1)
                     
                     if progress.wasCanceled():
                         return
-                        
-                    # Очищаем таблицу перед восстановлением
-                    setters.clear_table(self.supabase, table)
-                    
-                    items = data[table]
-                    batch_size = 100  # Оптимальный размер пакета
-                    
-                    for j in range(0, len(items), batch_size):
-                        batch = items[j:j+batch_size]
-                        
-                        if table == 'works':
-                            setters.batch_insert_works_fast(self.supabase, batch)
-                        elif table == 'materials':
-                            setters.batch_insert_materials_fast(self.supabase, batch)
-                        elif table == 'works_categories':
-                            setters.batch_insert_work_categories_fast(self.supabase, batch)
-                        elif table == 'materials_categories':
-                            setters.batch_insert_material_categories_fast(self.supabase, batch)
-                        
-                        # Обновляем прогресс внутри таблицы
-                        progress.setLabelText(f"{table}: {min(j+batch_size, len(items))}/{len(items)}")
-                        QApplication.processEvents()
-                        if progress.wasCanceled():
-                            return
                 
-                progress.setValue(len(selected_tables))
+                progress.setValue(len(selected_groups)*2)
                 QMessageBox.information(self, "Успех", "Данные успешно восстановлены!")
                 self.load_data_from_supabase()
                 
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Ошибка восстановления:\n{str(e)}")
-                return
                 
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось восстановить данные:\n{str(e)}")
-    
+        
     def create_edit_btn(self, row_idx=None):
         edit_btn = QToolButton()
         edit_btn.setObjectName("editToolButton")
