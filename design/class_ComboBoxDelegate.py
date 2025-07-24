@@ -52,8 +52,14 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 self.main_list = QListWidget(combo_container)
                 self.sub_list = QListWidget(combo_container)
 
-                # self.main_list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-                # self.sub_list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+                self.main_list.setWordWrap(True)  # Включаем перенос текста
+                self.sub_list.setWordWrap(True)
+
+                self.main_list.setObjectName("MainList")
+                self.sub_list.setObjectName("SubList")
+
+                self.main_list.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
+                self.sub_list.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
 
                 self.main_list.itemClicked.connect(self.update_sub_list)
 

@@ -154,45 +154,6 @@ DROPDOWN_STYLE = f"""
 """
 
 DROPDOWN_DELEGATE_STYLE = f"""
-    QComboBox {{
-        background-color: {WHITE};
-        color: {BLACK};
-        border: 2px solid {DARK_GRAY};
-        border-radius: 1px;
-        min-width: 180px;
-        min-height: 20px;
-        font-size: 14px;
-        selection-background-color: {ACCENT_BLUE};
-        selection-color: {WHITE};
-    }}
-
-    QComboBox:hover {{
-        background-color: {LIGHT_GRAY};
-    }}
-
-    QComboBox::drop-down {{
-        subcontrol-origin: padding;
-        subcontrol-position: top right;
-        width: 24px;
-        border-left: 2px solid {DARK_GRAY};
-    }}
-
-    QComboBox::down-arrow {{
-        image: url({arrow_path});
-        width: 14px;
-        height: 14px;
-    }}
-
-QComboBox QAbstractItemView {{
-        border: 2px solid {DARK_GRAY};
-        background: {WHITE};
-        color: {BLACK};
-        selection-background-color: {ACCENT_BLUE};
-        selection-color: {WHITE};
-        outline: none;
-        font-size: 14px;
-    }}
-    
     QLineEdit {{
         background-color: {WHITE};
         color: {BLACK};
@@ -206,8 +167,31 @@ QComboBox QAbstractItemView {{
     QListWidget {{
         background-color: {WHITE};
         color: {BLACK};
-        font-size: 14px;
-        min-width: 200px;
+        font-size: 8pt;
+        padding: 2px;
+        min-height: 300px;
+    }}
+    
+    QListWidget::item {{
+        padding: 2px;
+    }}
+    
+    QListWidget::item:selected {{
+        background: {ACCENT_BLUE};
+        color: {BLACK};
+    }}
+    
+    QListWidget::item:focus {{
+        border: none !important; 
+        outline: none !important;
+    }}
+    
+    #MainList {{
+        min-width: 170px;
+    }}
+    
+    #SubList {{
+        min-width: 350px;
     }}
 """
 
