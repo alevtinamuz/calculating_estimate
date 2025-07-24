@@ -73,9 +73,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 if current_value:
                     self.set_current_value(current_value)
 
-                # Позиционирование при создании
-                self.adjust_editor_position(editor, parent, index)
-
                 self.current_editor = editor
 
                 return editor
@@ -119,35 +116,43 @@ class ComboBoxDelegate(QStyledItemDelegate):
         if text:
             self.update_sub_list(text)
 
-    def adjust_editor_position(self, editor, parent, index):
-        """Безопасное позиционирование редактора"""
-        try:
-            table = parent.parent()  # Получаем таблицу из viewport
-            if not table:
-                return
-
-            rect = table.visualRect(index)
-            global_pos = table.viewport().mapToGlobal(rect.bottomLeft())
-
-            # Применяем смещение
-            editor.move(global_pos + self.editor_pos_offset)
-            editor.resize(max(rect.width(), 300), editor.sizeHint().height())
-
-        except Exception as e:
-            print(f"Positioning error: {e}")
-
     def updateEditorGeometry(self, editor, option, index):
-        """Упрощенная версия без рекурсии"""
-        if index.column() in [1, 6]:
+        """Позиционирование редактора с учетом границ экрана"""
+        if index.column() in [1, 6]:  # Только для нужных колонок
             try:
-                # Используем абсолютные координаты
+                # Получаем геометрию ячейки
                 rect = option.rect
-                global_pos = editor.parent().mapToGlobal(rect.bottomLeft())
-                editor.move(global_pos + self.editor_pos_offset)
-                editor.resize(max(rect.width(), 300), editor.sizeHint().height())
-            except:
+                viewport = editor.parent()
+
+                global_pos = viewport.mapToGlobal(rect.bottomLeft())
+
+                # Получаем информацию об экране
+                screen = viewport.screen()
+                screen_geometry = screen.availableGeometry()
+
+                # Рассчитываем размеры редактора
+                editor_height = editor.sizeHint().height()
+                editor_width = max(rect.width(), 300)
+
+                editor_x = global_pos.x() - 100
+
+                if global_pos.y() + editor_height > screen_geometry.bottom():
+                    editor_y = global_pos.y() - editor_height - rect.height()
+                else:
+                    editor_y = global_pos.y()
+                if editor_y < screen_geometry.top():
+                    editor_y = screen_geometry.top()
+
+                # Применяем вычисленные координаты
+                editor.move(QPoint(editor_x, editor_y))
+                editor.resize(editor_width, editor_height)
+
+            except Exception as e:
+                print(f"Editor geometry error: {e}")
+                # Фоллбэк на стандартное поведение
                 super().updateEditorGeometry(editor, option, index)
         else:
+            # Для других колонок - стандартное поведение
             super().updateEditorGeometry(editor, option, index)
 
     def load_initial_data(self, column):
