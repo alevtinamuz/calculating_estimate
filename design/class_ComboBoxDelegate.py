@@ -261,12 +261,5 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
     def destroyEditor(self, editor, index):
         """Очищаем ссылки при уничтожении редактора"""
-        if hasattr(self, 'search_line_edit'):
-            self.search_line_edit.deleteLater()
-        if hasattr(self, 'main_combo'):
-            self.main_combo.deleteLater()
-        if hasattr(self, 'sub_combo'):
-            self.sub_combo.deleteLater()
-
         self.current_editor = None
         super().destroyEditor(editor, index)
