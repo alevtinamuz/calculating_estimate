@@ -121,7 +121,7 @@ class PageEstimate(QMainWindow):
         delete_work_btn = self.create_button("Удалить работу", lambda: self.delete_selected_work())
         delete_material_btn = self.create_button("Удалить материал", lambda: self.delete_selected_material())
         clear_table_btn = self.create_button("Очистить таблицу", lambda: self.clear_table())
-        export_pdf_btn = self.create_button("Экспорт в PDF", lambda: self.export_to_pdf())
+        export_pdf_btn = self.create_button("Экспорт в PDF", lambda: self.table_manager.actions.export_to_pdf())
 
         button_layout.addWidget(add_work_btn)
         button_layout.addWidget(add_material_btn)
