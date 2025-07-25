@@ -12,40 +12,22 @@ class EstimateTableManager:
     def __init__(self, table_widget, supabase, page_estimate):
         self.table = table_widget
         self.supabase = supabase
-        self.works = []
         self.current_row_mapping = {}
         self.page_estimate = page_estimate
-        self.model = EstimateDataModel()
+
+        self.model = EstimateDataModel(table_widget)
+
         self.view = TableViewManager(table_widget)
+        self.view.set_model(self.model)
+
         self.actions = UserActionsHandler(self.view, self.model, page_estimate)
 
     def setup_table(self):
         """Настройка таблицы"""
-        self.configure_table_appearance()
-        self.setup_headers()
+        self.view.configure_table_appearance()
+        self.view.setup_headers()
         self.setup_delegates()
         self.connect_data_changes()
-
-    def configure_table_appearance(self):
-        """Настраивает внешний вид таблицы"""
-        self.table.setStyleSheet(DATA_TABLE_STYLE)
-        self.table.setShowGrid(False)
-        self.table.setEditTriggers(
-            QTableWidget.EditTrigger.DoubleClicked |
-            QTableWidget.EditTrigger.EditKeyPressed
-        )
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-
-    def setup_headers(self):
-        """Устанавливает заголовки таблицы"""
-        headers = [
-            "№ п/п", "Наименование работ и затрат", "Ед. изм.", "К-во",
-            "Фактический ФОТ на ед., руб", "ФОТ всего, руб", "Наименование материалов",
-            "Ед. изм.", "К-во", "Цена, руб", "Сумма, руб", "Всего, руб"
-        ]
-        self.table.setColumnCount(len(headers))
-        self.table.setHorizontalHeaderLabels(headers)
 
     def setup_delegates(self):
         """Устанавливает делегаты, кем бы они ни были"""
@@ -57,23 +39,20 @@ class EstimateTableManager:
         try:
             self.table.setUpdatesEnabled(False)
 
-            # Добавляем работу в модель
-            new_work = WorkItem()
-            self.works.append(new_work)
-
-            # self.works[-1].materials.append(MaterialItem())
+            self.model.add_work()
 
             # Вставляем строку
             row_pos = self.table.rowCount()
             self.table.insertRow(row_pos)
 
             # Заполняем строку работы
-            self.fill_work_row(row_pos, len(self.works))
+            self.view.fill_work_row(row_pos, len(self.model.works))
 
             # Обновляем маппинг и объединения
             self.rebuild_mapping()
             self.update_all_spans()
-            self.renumber_works()
+            # self.renumber_works()
+            self.view.renumber_rows()
 
             # Выделяем новую работу
             self.table.selectRow(row_pos)
@@ -90,7 +69,7 @@ class EstimateTableManager:
             self.table.setUpdatesEnabled(False)
 
             # Если нет работ, добавляем новую
-            if not self.works:
+            if not self.model.works:
                 self.add_row_work()
                 return
 
@@ -98,15 +77,15 @@ class EstimateTableManager:
             work_idx, work_start_row = self.find_selected_work()
 
             # Добавляем материал в модель
-            self.works[work_idx].materials.append(MaterialItem())
-            materials_count = len(self.works[work_idx].materials)
+            self.model.add_material(work_idx)
+            materials_count = len(self.model.works[work_idx].materials)
 
             # Вставляем строку в правильное место
             insert_row = work_start_row + materials_count
             self.table.insertRow(insert_row)
 
             # Заполняем строку материала
-            self.fill_material_row(insert_row)
+            self.view.fill_material_row(insert_row)
 
             # Обновляем объединения
             self.update_spans_for_work(work_idx, work_start_row)
@@ -117,8 +96,8 @@ class EstimateTableManager:
         except Exception as e:
             print(f"Ошибка при добавлении материала: {e}")
             # Откатываем изменения в модели при ошибке
-            if work_idx is not None and len(self.works[work_idx].materials) > 0:
-                self.works[work_idx].materials.pop()
+            if work_idx is not None and len(self.model.works[work_idx].materials) > 0:
+                self.model.works[work_idx].materials.pop()
             raise
         finally:
             self.table.setUpdatesEnabled(True)
@@ -141,7 +120,7 @@ class EstimateTableManager:
         reply = QMessageBox.question(
             self.page_estimate,
             "Подтверждение",
-            f"Вы уверены, что хотите удалить работу '{self.works[work_idx].name}' и все её материалы?",
+            f"Вы уверены, что хотите удалить работу '{self.model.works[work_idx].name}' и все её материалы?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
 
@@ -152,17 +131,18 @@ class EstimateTableManager:
             self.table.setUpdatesEnabled(False)
 
             # Удаляем строки из таблицы
-            work_height = len(self.works[work_idx].materials) + 1
+            work_height = len(self.model.works[work_idx].materials) + 1
             for _ in range(work_height):
                 self.table.removeRow(work_start_row)
 
             # Удаляем работу из модели
-            del self.works[work_idx]
+            self.model.delete_work(work_idx)
 
             # Обновляем маппинг, объединения и нумерацию
             self.rebuild_mapping()
             self.update_all_spans()
-            self.renumber_works()
+            # self.renumber_works()
+            self.view.renumber_rows()
 
         except Exception as e:
             print(f"Ошибка при удалении работы: {e}")
@@ -186,7 +166,7 @@ class EstimateTableManager:
 
         # Определяем, выделена ли строка работы (первый материал)
         is_first_material = selected_row == work_start_row
-        materials_count = len(self.works[work_idx].materials)
+        materials_count = len(self.model.works[work_idx].materials)
 
         # Если это первый и единственный материал
         if is_first_material and materials_count == 1:
@@ -236,7 +216,7 @@ class EstimateTableManager:
                 self.table.removeRow(selected_row)
 
             # Удаляем материал из модели
-            del self.works[work_idx].materials[material_idx]
+            self.model.delete_material(work_idx, material_idx)
 
             # Обновляем объединения для работы
             self.update_spans_for_work(work_idx, work_start_row)
@@ -249,7 +229,7 @@ class EstimateTableManager:
 
     def update_spans_for_work(self, work_idx, work_start_row):
         """Обновляет объединения ячеек для конкретной работы"""
-        work = self.works[work_idx]
+        work = self.model.works[work_idx]
         span_height = len(work.materials) + 1
 
         # Сбрасываем объединения для этой работы
@@ -271,7 +251,7 @@ class EstimateTableManager:
         selected_row = selected_ranges[0].topRow()
 
         current_row = 0
-        for i, work in enumerate(self.works):
+        for i, work in enumerate(self.model.works):
             work_height = len(work.materials) + 1
             if current_row <= selected_row < current_row + work_height:
                 return i, current_row
@@ -288,12 +268,94 @@ class EstimateTableManager:
 
         # Затем устанавливаем новые объединения
         current_row = 0
-        for work in self.works:
+        for work in self.model.works:
             span_height = len(work.materials) + 1
             if span_height > 0:  # Объединяем только если есть материалы
                 for col in range(6):
                     self.table.setSpan(current_row, col, span_height, 1)
             current_row += span_height
+
+    def rebuild_mapping(self):
+        """Обновляет mapping работ и их строк"""
+        self.current_row_mapping = {}
+        current_row = 0
+        for i, work in enumerate(self.model.works):
+            end_row = current_row + len(work.materials)
+            self.current_row_mapping[i] = (current_row, end_row)
+            current_row = end_row + 1
+
+    # def renumber_works(self):
+    #     """Обновляет нумерацию работ"""
+    #     for i, (start_row, _) in self.current_row_mapping.items():
+    #         item = self.table.item(start_row, 0)
+    #         if item:
+    #             item.setText(str(i + 1))
+
+    def clear_all_data(self):
+        """Полностью очищает таблицу и модель"""
+        reply = QMessageBox.question(
+            self.page_estimate,
+            "Подтверждение",
+            "Вы уверены, что хотите полностью очистить таблицу? Все данные будут удалены.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.No:
+            return
+
+        try:
+
+            # Очищаем таблицу
+            self.table.setRowCount(0)
+
+            # Очищаем модель
+            self.model.clear_all_data()
+            self.current_row_mapping.clear()
+
+        except Exception as e:
+            print(f"Ошибка при очистке таблицы: {e}")
+            QMessageBox.critical(self.page_estimate, "Ошибка", "Не удалось очистить таблицу")
+
+    def connect_data_changes(self):
+        """Подключает обработчик изменений данных в таблице"""
+        self.table.model().dataChanged.connect(self.handle_data_change)
+
+    def handle_data_change(self, top_left, bottom_right, roles):
+        """Обрабатывает изменения данных в таблице"""
+        if not roles or Qt.ItemDataRole.EditRole in roles:
+            for row in range(top_left.row(), bottom_right.row() + 1):
+                for col in range(top_left.column(), bottom_right.column() + 1):
+                    self.model.update_model_from_table(row, col)
+
+
+class TableViewManager:
+    def __init__(self, table):
+        self.table = table
+        self.model = None
+
+    def set_model(self, model):
+        self.model = model
+
+    def configure_table_appearance(self):
+        """Настраивает внешний вид таблицы"""
+        self.table.setStyleSheet(DATA_TABLE_STYLE)
+        self.table.setShowGrid(False)
+        self.table.setEditTriggers(
+            QTableWidget.EditTrigger.DoubleClicked |
+            QTableWidget.EditTrigger.EditKeyPressed
+        )
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+
+    def setup_headers(self):
+        """Устанавливает заголовки таблицы"""
+        headers = [
+            "№ п/п", "Наименование работ и затрат", "Ед. изм.", "К-во",
+            "Фактический ФОТ на ед., руб", "ФОТ всего, руб", "Наименование материалов",
+            "Ед. изм.", "К-во", "Цена, руб", "Сумма, руб", "Всего, руб"
+        ]
+        self.table.setColumnCount(len(headers))
+        self.table.setHorizontalHeaderLabels(headers)
 
     def fill_work_row(self, row, number):
         """Заполняет строку работы"""
@@ -335,51 +397,24 @@ class EstimateTableManager:
                 item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             self.table.setItem(row, col, item)
 
-    def rebuild_mapping(self):
-        """Обновляет mapping работ и их строк"""
-        self.current_row_mapping = {}
-        current_row = 0
-        for i, work in enumerate(self.works):
-            end_row = current_row + len(work.materials)
-            self.current_row_mapping[i] = (current_row, end_row)
-            current_row = end_row + 1
-
-    def renumber_works(self):
+    def renumber_rows(self):
         """Обновляет нумерацию работ"""
-        for i, (start_row, _) in self.current_row_mapping.items():
-            item = self.table.item(start_row, 0)
+        for work in self.model.works:
+            print("num", work.number, "row", work.row, )
+            item = self.table.item(work.row, 0)
             if item:
-                item.setText(str(i + 1))
+                item.setText(str(work.number))
+                print("set", work.number, "row", work.row)
+            else:
+                print("not item")
 
-    def clear_all_data(self):
-        """Полностью очищает таблицу и модель"""
-        reply = QMessageBox.question(
-            self.page_estimate,
-            "Подтверждение",
-            "Вы уверены, что хотите полностью очистить таблицу? Все данные будут удалены.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
 
-        if reply == QMessageBox.StandardButton.No:
-            return
+class EstimateDataModel:
+    def __init__(self, table):
+        self.works = []
+        self.table = table
 
-        try:
-            self.table.setUpdatesEnabled(False)
-
-            # Очищаем таблицу
-            self.table.setRowCount(0)
-
-            # Очищаем модель
-            self.works.clear()
-            self.current_row_mapping.clear()
-
-        except Exception as e:
-            print(f"Ошибка при очистке таблицы: {e}")
-            QMessageBox.critical(self.page_estimate, "Ошибка", "Не удалось очистить таблицу")
-        finally:
-            self.table.setUpdatesEnabled(True)
-
-    def update_works(self, work_index, name, unit, quantity, labor_cost):
+    def update_work(self, work_index, name, unit, quantity, labor_cost):
         work = WorkItem()
         work.name = name
         work.unit = unit
@@ -388,7 +423,7 @@ class EstimateTableManager:
 
         self.works[work_index] = work
 
-    def update_materials(self, work_index, material_index, name, unit, quantity, price):
+    def update_material(self, work_index, material_index, name, unit, quantity, price):
         material = MaterialItem()
         material.name = name
         material.unit = unit
@@ -397,16 +432,47 @@ class EstimateTableManager:
 
         self.works[work_index][material_index] = material
 
-    def connect_data_changes(self):
-        """Подключает обработчик изменений данных в таблице"""
-        self.table.model().dataChanged.connect(self.handle_data_change)
+    def add_work(self):
+        work = WorkItem()
+        self.works.append(work)
+        self.works[-1].row = self.table.rowCount()
+        self.works[-1].number = len(self.works)
 
-    def handle_data_change(self, top_left, bottom_right, roles):
-        """Обрабатывает изменения данных в таблице"""
-        if not roles or Qt.ItemDataRole.EditRole in roles:
-            for row in range(top_left.row(), bottom_right.row() + 1):
-                for col in range(top_left.column(), bottom_right.column() + 1):
-                    self.update_model_from_table(row, col)
+        print(self.works[-1].row, self.works[-1].number)
+
+    def add_material(self, work_index):
+        material = MaterialItem()
+        self.works[work_index].materials.append(material)
+
+        self.works[work_index].height += 1
+
+        for i in range(work_index + 1, len(self.works)):
+            self.works[i].row += 1
+
+        print(self.works[-1].row, self.works[-1].number)
+
+    def delete_work(self, work_index):
+        work_height = self.works[work_index].height
+
+        for i in range(work_index + 1, len(self.works)):
+            self.works[i].row -= work_height
+            self.works[i].number -= 1
+            print(self.works[i].number)
+
+        del self.works[work_index]
+
+        print(self.works[-1].row, self.works[-1].number)
+
+    def delete_material(self, work_index, material_index):
+        for i in range(work_index + 1, len(self.works)):
+            self.works[i].row -= 1
+
+        del self.works[work_index].materials[material_index]
+
+        print(self.works[-1].row, self.works[-1].number)
+
+    def clear_all_data(self):
+        self.works.clear()
 
     def update_model_from_table(self, row, col):
         """Обновляет модель на основе изменений в таблице"""
@@ -453,31 +519,21 @@ class EstimateTableManager:
                 elif col == 10:  # Сумма материала
                     pass  # Это вычисляемое поле, не сохраняем
 
-            for i in range(len(self.works)):
-                for j in range(len(self.works[i].materials)):
-                    print(i, self.works[i].name, j, self.works[i].materials[j].name)
+            # for i in range(len(self.works)):
+            #     for j in range(len(self.works[i].materials)):
+            #         print(i, self.works[i].name, j, self.works[i].materials[j].name)
 
         except Exception as e:
             print(f"Ошибка при обновлении модели из таблицы: {e}")
 
     def find_work_by_row(self, row):
         """Находит работу по номеру строки в таблице"""
-        current_row = 0
-        for i, work in enumerate(self.works):
-            work_height = len(work.materials) + 1
-            if current_row <= row < current_row + work_height:
-                return i, current_row
-            current_row += work_height
+
+        for work in self.works:
+            if work.row == row:
+                return work.number - 1, work.row
+
         return None, None
-
-
-class TableViewManager:
-    def __init__(self, table):
-        self.table = table
-
-
-class EstimateDataModel:
-    pass
 
 
 class UserActionsHandler:

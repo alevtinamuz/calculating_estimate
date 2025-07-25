@@ -5,6 +5,9 @@ class WorkItem:
         self.quantity = 1
         self.labor_cost = 0.0
         self.materials = []  # Список MaterialItem
+        self.row = 0
+        self.number = 0
+        self.height = 1
 
 
 class MaterialItem:
