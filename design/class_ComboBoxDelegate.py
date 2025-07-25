@@ -1,13 +1,8 @@
-import os
-from supabase import create_client, Client
-
 from PyQt6.QtCore import Qt, QPoint, QStringListModel
 from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit, \
     QListWidget, QListWidgetItem
-from dotenv import load_dotenv
 
 import getters
-from design.classes import WorkItem, MaterialItem
 from design.styles import DROPDOWN_DELEGATE_STYLE, SPIN_BOX_STYLE
 
 
@@ -213,7 +208,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
                     el = QListWidgetItem(item['name'])
                     el.setData(Qt.ItemDataRole.UserRole, item['id'])  # Сохраняем id в UserRole
                     self.sub_list.addItem(el)
-                    # self.sub_list.addItem(item['name'], item['id'])
 
             except Exception as e:
                 print(f"Sub-combo update error: {e}")
@@ -239,13 +233,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 entity = entities[0]
 
                 if index.column() == 1:  # Обработка работы
-                    # Проверяем и расширяем список работ при необходимости
-                    while index.row() >= len(self.main_window.works):
-                        self.main_window.works.append(WorkItem())
-
-                    work = self.main_window.works[index.row()]
-                    work.name = selected_text
-                    work.unit = entity['unit']
 
                     # Обновляем ячейки цены и единиц измерения
                     price_index = model.index(index.row(), 4)
@@ -263,25 +250,13 @@ class ComboBoxDelegate(QStyledItemDelegate):
                         work_row -= 1
 
                     if work_row >= 0:
-                        # Проверяем границы списка работ
-                        if work_row >= len(self.main_window.works):
-                            # Добавляем новую работу, если не существует
-                            self.main_window.works.append(WorkItem())
-
-                        # Добавляем новый материал к работе
-                        material = MaterialItem()
-                        material.name = selected_text
-                        material.unit = entity['unit']
-                        material.price = entity['price']
-
-                        self.main_window.works[work_row].materials.append(material)
 
                         # Обновляем ячейки цены и единиц измерения материала
                         price_index = model.index(index.row(), 9)
-                        model.setData(price_index, material.price)
+                        model.setData(price_index, entity['price'])
 
                         unit_index = model.index(index.row(), 7)
-                        model.setData(unit_index, material.unit)
+                        model.setData(unit_index, entity['unit'])
 
             except IndexError as ie:
                 print(f"Ошибка индекса при обновлении данных: {ie}")
