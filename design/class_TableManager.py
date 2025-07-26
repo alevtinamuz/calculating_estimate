@@ -22,10 +22,10 @@ class EstimateTableManager:
 
         self.actions = UserActionsHandler(self.view, self.model, page_estimate)
 
+        self.setup_table()
+
     def setup_table(self):
         """Настройка таблицы"""
-        self.view.configure_table_appearance()
-        self.view.setup_headers()
         self.setup_delegates()
         self.connect_data_changes()
 
@@ -51,7 +51,6 @@ class EstimateTableManager:
             # Обновляем маппинг и объединения
             self.rebuild_mapping()
             self.update_all_spans()
-            # self.renumber_works()
             self.view.renumber_rows()
 
             # Выделяем новую работу
@@ -141,7 +140,6 @@ class EstimateTableManager:
             # Обновляем маппинг, объединения и нумерацию
             self.rebuild_mapping()
             self.update_all_spans()
-            # self.renumber_works()
             self.view.renumber_rows()
 
         except Exception as e:
@@ -284,13 +282,6 @@ class EstimateTableManager:
             self.current_row_mapping[i] = (current_row, end_row)
             current_row = end_row + 1
 
-    # def renumber_works(self):
-    #     """Обновляет нумерацию работ"""
-    #     for i, (start_row, _) in self.current_row_mapping.items():
-    #         item = self.table.item(start_row, 0)
-    #         if item:
-    #             item.setText(str(i + 1))
-
     def clear_all_data(self):
         """Полностью очищает таблицу и модель"""
         reply = QMessageBox.question(
@@ -333,8 +324,15 @@ class TableViewManager:
         self.table = table
         self.model = None
 
+        self.setup_table()
+
     def set_model(self, model):
         self.model = model
+
+    def setup_table(self):
+        """Настройка таблицы"""
+        self.configure_table_appearance()
+        self.setup_headers()
 
     def configure_table_appearance(self):
         """Настраивает внешний вид таблицы"""
@@ -352,7 +350,7 @@ class TableViewManager:
         headers = [
             "№ п/п", "Наименование работ и затрат", "Ед. изм.", "К-во",
             "Фактический ФОТ на ед., руб", "ФОТ всего, руб", "Наименование материалов",
-            "Ед. изм.", "К-во", "Цена, руб", "Сумма, руб", "Всего, руб"
+            "Ед. изм.", "К-во", "Цена, руб", "Сумма, руб", "Сумма по всем материалам", "Всего, руб"
         ]
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
@@ -368,7 +366,7 @@ class TableViewManager:
         # Наименование работы (редактируемое)
         item = QTableWidgetItem("")
         item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
-        item.setData(Qt.ItemDataRole.UserRole, "work_name")
+        # item.setData(Qt.ItemDataRole.UserRole, "work_name")
         self.table.setItem(row, 1, item)
 
         # Остальные ячейки работы
@@ -380,11 +378,11 @@ class TableViewManager:
             self.table.setItem(row, col, item)
 
         # Ячейки материалов
-        for col in range(6, self.table.columnCount()):
-            item = QTableWidgetItem("")
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
-            item.setData(Qt.ItemDataRole.UserRole, f"material_col_{col}")
-            self.table.setItem(row, col, item)
+        # for col in range(6, self.table.columnCount()):
+        #     item = QTableWidgetItem("")
+        #     item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
+        #     item.setData(Qt.ItemDataRole.UserRole, f"material_col_{col}")
+        #     self.table.setItem(row, col, item)
 
     def fill_material_row(self, row):
         """Заполняет строку материала"""
@@ -393,20 +391,16 @@ class TableViewManager:
             if col >= 6:  # Колонки материалов
                 item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
                 item.setData(Qt.ItemDataRole.UserRole, f"material_col_{col}")
-            else:
-                item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            # else:
+            #     item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             self.table.setItem(row, col, item)
 
     def renumber_rows(self):
         """Обновляет нумерацию работ"""
         for work in self.model.works:
-            print("num", work.number, "row", work.row, )
             item = self.table.item(work.row, 0)
             if item:
                 item.setText(str(work.number))
-                print("set", work.number, "row", work.row)
-            else:
-                print("not item")
 
 
 class EstimateDataModel:
@@ -438,8 +432,6 @@ class EstimateDataModel:
         self.works[-1].row = self.table.rowCount()
         self.works[-1].number = len(self.works)
 
-        print(self.works[-1].row, self.works[-1].number)
-
     def add_material(self, work_index):
         material = MaterialItem()
         self.works[work_index].materials.append(material)
@@ -449,19 +441,14 @@ class EstimateDataModel:
         for i in range(work_index + 1, len(self.works)):
             self.works[i].row += 1
 
-        print(self.works[-1].row, self.works[-1].number)
-
     def delete_work(self, work_index):
         work_height = self.works[work_index].height
 
         for i in range(work_index + 1, len(self.works)):
             self.works[i].row -= work_height
             self.works[i].number -= 1
-            print(self.works[i].number)
 
         del self.works[work_index]
-
-        print(self.works[-1].row, self.works[-1].number)
 
     def delete_material(self, work_index, material_index):
         for i in range(work_index + 1, len(self.works)):
@@ -469,7 +456,7 @@ class EstimateDataModel:
 
         del self.works[work_index].materials[material_index]
 
-        print(self.works[-1].row, self.works[-1].number)
+        self.works[work_index].height -= 1
 
     def clear_all_data(self):
         self.works.clear()

@@ -49,8 +49,6 @@ class PageEstimate(QMainWindow):
 
             self.table_manager = EstimateTableManager(self.table_estimate, self.supabase, self)
 
-            self.table_manager.setup_table()
-
             layout.addWidget(self.table_estimate)
 
             button_panel = self.create_button_panel()
