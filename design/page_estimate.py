@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QTableWid
 from design.class_ComboBoxDelegate import ComboBoxDelegate
 from design.class_TableManager import EstimateTableManager
 from design.classes import MaterialItem, WorkItem
-from design.styles import LABEL_STYLE, DATA_TABLE_STYLE, PRIMARY_BUTTON_STYLE
+from design.styles import LABEL_STYLE, DATA_TABLE_STYLE, PRIMARY_BUTTON_STYLE, MESSAGE_BOX_STYLE
 
 
 class PageEstimate(QMainWindow):
@@ -35,6 +35,8 @@ class PageEstimate(QMainWindow):
         layout.addWidget(table_estimate)
 
         page_estimate.setLayout(layout)
+
+        page_estimate.setStyleSheet(MESSAGE_BOX_STYLE)
 
         return page_estimate
 

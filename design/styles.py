@@ -274,18 +274,50 @@ CONTEXT_MENU_STYLE = f"""
     }}
 """
 
-SPIN_BOX_STYLE = """
-    QSpinBox {
+SPIN_BOX_STYLE = f"""
+    QSpinBox {{
         background-color: white;
-        color: black;
-    }
+        color: {BLACK};
+    }}
     
-    QTableWidget QSpinBox {
-        color: black !important;
-    }
+    QTableWidget QSpinBox {{
+        color: {BLACK} !important;
+    }}
     
     /* Стиль для текста при редактировании */
-    QAbstractItemView:edit {
-        color: black !important;
-    }
+    QAbstractItemView:edit {{
+        color: {BLACK} !important;
+    }}
+"""
+
+MESSAGE_BOX_STYLE = f"""
+QMessageBox {{
+    background-color: {WHITE};  
+    color: {BLACK};             
+    font-family: Arial;
+    font-size: 12px;
+}}
+
+QMessageBox QLabel {{
+    color: {BLACK};        
+    background-color: {WHITE}; 
+}}
+
+QMessageBox QPushButton {{
+    background-color: #3A3A3A;
+    color: #FFFFFF;
+    border: 1px solid {LIGHT_GRAY};
+    border-radius: 4px;
+    padding: 5px 10px;
+    min-width: 80px;
+}}
+
+QMessageBox QPushButton:hover {{
+    background-color: {LIGHT_GRAY};
+}}
+
+QMessageBox QPushButton:pressed {{
+    background-color: {ACCENT_BLUE};
+    border: 1px solid {ACCENT_BLUE};
+}}
 """

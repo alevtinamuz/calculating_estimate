@@ -41,6 +41,9 @@ class EstimateTableManager:
             self.model.add_work()
             self.view.add_work_row()
 
+            self.view.update_all_spans()
+            self.view.renumber_rows()
+
         except Exception as e:
             print(f"Ошибка при добавлении работы: {e}")
             raise
@@ -54,7 +57,8 @@ class EstimateTableManager:
 
             # Если нет работ, добавляем новую
             if not self.model.works:
-                self.add_row_work()
+                QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для добавления "
+                                                                          "материала")
                 return
 
             # Находим выделенную работу
@@ -62,20 +66,10 @@ class EstimateTableManager:
 
             # Добавляем материал в модель
             self.model.add_material(work_idx)
-            materials_count = len(self.model.works[work_idx].materials)
 
-            # Вставляем строку в правильное место
-            insert_row = work_start_row + materials_count
-            self.table.insertRow(insert_row)
+            self.view.add_material_row(work_idx, work_start_row)
 
-            # Заполняем строку материала
-            self.view.fill_material_row(insert_row)
-
-            # Обновляем объединения
-            self.update_spans_for_work(work_idx, work_start_row)
-
-            # Выделяем новый материал
-            self.table.selectRow(insert_row)
+            self.view.update_spans_for_work(work_idx, work_start_row)
 
         except Exception as e:
             print(f"Ошибка при добавлении материала: {e}")
@@ -93,7 +87,6 @@ class EstimateTableManager:
             QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для удаления")
             return
 
-        selected_row = selected_ranges[0].topRow()
         work_idx, work_start_row = self.view.find_selected_work()
 
         if work_idx is None:
@@ -114,10 +107,7 @@ class EstimateTableManager:
         try:
             self.table.setUpdatesEnabled(False)
 
-            # Удаляем строки из таблицы
-            work_height = len(self.model.works[work_idx].materials) + 1
-            for _ in range(work_height):
-                self.table.removeRow(work_start_row)
+            self.view.delete_selected_work(work_idx, work_start_row)
 
             # Удаляем работу из модели
             self.model.delete_work(work_idx)
@@ -148,7 +138,6 @@ class EstimateTableManager:
 
         # Определяем, выделена ли строка работы (первый материал)
         is_first_material = selected_row == work_start_row
-        # materials_count = len(self.model.works[work_idx].materials)
         materials_count = self.model.works[work_idx].height
 
         # Если это первый и единственный материал
@@ -202,28 +191,13 @@ class EstimateTableManager:
             self.model.delete_material(work_idx, material_idx)
 
             # Обновляем объединения для работы
-            self.update_spans_for_work(work_idx, work_start_row)
+            self.view.update_spans_for_work(work_idx, work_start_row)
 
         except Exception as e:
             print(f"Ошибка при удалении материала: {e}")
             raise
         finally:
             self.table.setUpdatesEnabled(True)
-
-    def update_spans_for_work(self, work_idx, work_start_row):
-        """Обновляет объединения ячеек для конкретной работы"""
-        work = self.model.works[work_idx]
-        span_height = len(work.materials) + 1
-
-        # Сбрасываем объединения для этой работы
-        for row in range(work_start_row, work_start_row + span_height):
-            for col in range(6):
-                self.table.setSpan(row, col, 1, 1)
-
-        # Устанавливаем новые объединения, если есть материалы
-        if span_height > 1:
-            for col in range(6):
-                self.table.setSpan(work_start_row, col, span_height, 1)
 
     def clear_all_data(self):
         """Полностью очищает таблицу и модель"""
@@ -350,12 +324,34 @@ class TableViewManager:
         # Заполняем строку работы
         self.fill_work_row(row_pos, len(self.model.works))
 
-        # Обновляем маппинг и объединения
-        self.update_all_spans()
-        self.renumber_rows()
-
         # Выделяем новую работу
         self.table.selectRow(row_pos)
+
+    def add_material_row(self, work_idx, work_start_row):
+        materials_count = len(self.model.works[work_idx].materials)
+
+        # Вставляем строку в правильное место
+        insert_row = work_start_row + materials_count
+        self.table.insertRow(insert_row)
+
+        # Заполняем строку материала
+        self.fill_material_row(insert_row)
+
+        # Обновляем объединения
+        # self.view.update_spans_for_work(work_idx, work_start_row)
+
+        # Выделяем новый материал
+        self.table.selectRow(insert_row)
+
+        # # Вставляем строку
+        # row_pos = self.table.rowCount()
+        # self.table.insertRow(row_pos)
+        #
+        # # Заполняем строку работы
+        # self.fill_work_row(row_pos, len(self.model.works))
+        #
+        # # Выделяем новую работу
+        # self.table.selectRow(row_pos)
 
     def find_selected_work(self):
         """Точное определение выделенной работы с учетом объединенных ячеек"""
@@ -387,6 +383,27 @@ class TableViewManager:
                 for col in range(6):
                     self.table.setSpan(current_row, col, span_height, 1)
             current_row += span_height
+
+    def update_spans_for_work(self, work_idx, work_start_row):
+        """Обновляет объединения ячеек для конкретной работы"""
+        work = self.model.works[work_idx]
+        span_height = work.height
+
+        # Сбрасываем объединения для этой работы
+        for row in range(work_start_row, work_start_row + span_height):
+            for col in range(6):
+                self.table.setSpan(row, col, 1, 1)
+
+        # Устанавливаем новые объединения, если есть материалы
+        if span_height > 1:
+            for col in range(6):
+                self.table.setSpan(work_start_row, col, span_height, 1)
+
+    def delete_selected_work(self, work_idx, work_start_row):
+        """Удаляет выбранную работу и все её материалы"""
+        work_height = self.model.works[work_idx].height
+        for _ in range(work_height):
+            self.table.removeRow(work_start_row)
 
 
 class EstimateDataModel:
