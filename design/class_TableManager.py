@@ -19,8 +19,6 @@ class EstimateTableManager:
         self.view = TableViewManager(table_widget)
         self.view.set_model(self.model)
 
-        self.actions = UserActionsHandler(self.view, self.model, page_estimate)
-
         self.setup_table()
 
     def setup_table(self):
@@ -58,7 +56,7 @@ class EstimateTableManager:
             # Если нет работ, добавляем новую
             if not self.model.works:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для добавления "
-                                                                          "материала")
+                                                                        "материала")
                 return
 
             work_idx, work_start_row = self.view.find_selected_work()
@@ -486,95 +484,3 @@ class EstimateDataModel:
                 return work.number - 1, work.row
 
         return None, None
-
-
-class UserActionsHandler:
-    def __init__(self, table_manager, data_model, parent_widget):
-        self.table_manager = table_manager
-        self.data_model = data_model
-        self.page_estimate = parent_widget
-
-    def export_to_pdf(self):
-        """Экспортирует таблицу в PDF с заголовком и горизонтальными шапками"""
-        try:
-
-            # Диалог выбора файла
-            file_path, _ = QFileDialog.getSaveFileName(
-                self.page_estimate,
-                "Сохранить как PDF",
-                "Смета.pdf",
-                "PDF Files (*.pdf)"
-            )
-
-            if not file_path:
-                return
-
-            # Настройка принтера
-            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-            printer.setOutputFileName(file_path)
-            printer.setResolution(120)
-
-            # Устанавливаем поля страницы
-            layout = QPageLayout()
-            layout.setUnits(QPageLayout.Unit.Millimeter)
-            layout.setMargins(QMarginsF(15, 20, 15, 15))
-            printer.setPageLayout(layout)
-
-            painter = QPainter()
-            if not painter.begin(printer):
-                raise Exception("Не удалось начать печать")
-
-            self.table_manager.table.setStyleSheet(DATA_TABLE_STYLE)
-
-            title = "Смета работ и материалов"
-            font = QFont("Arial", 14, QFont.Weight.Bold)
-            painter.setFont(font)
-
-            # Получаем размеры страницы
-            page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
-
-            title_rect = QRectF(0, 0, page_rect.width(), 50)
-            painter.drawText(title_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, title)
-
-            self.table_manager.table.horizontalHeader().setVisible(True)
-            table_width = self.table_manager.table.viewport().width()
-            table_height = self.table_manager.table.viewport().height() + self.table_manager.table.horizontalHeader().height()
-
-            # Рассчитываем масштаб
-            scale = min(
-                (page_rect.width() - 40) / table_width,
-                (page_rect.height() - title_rect.height() - 40) / table_height
-            )
-
-            # Центрируем таблицу
-            painter.translate(
-                (page_rect.width() - table_width * scale) / 2,
-                title_rect.height() + 30
-            )
-            painter.scale(scale, scale)
-
-            header = self.table_manager.table.horizontalHeader()
-            header.render(painter, QPoint(0, 0))
-
-            painter.translate(0, header.height())
-            self.table_manager.table.viewport().render(painter)
-
-            # Восстанавливаем исходное состояние
-            painter.end()
-            self.table_manager.table.setStyleSheet(DATA_TABLE_STYLE)
-
-            QMessageBox.information(
-                self.page_estimate,
-                "Успех",
-                f"PDF успешно сохранен:\n{file_path}"
-            )
-
-        except Exception as e:
-            # Гарантированно восстанавливаем стили
-            self.table_manager.table.setStyleSheet(DATA_TABLE_STYLE)
-            QMessageBox.critical(
-                self.page_estimate,
-                "Ошибка",
-                f"Ошибка при сохранении PDF:\n{str(e)}"
-            )
