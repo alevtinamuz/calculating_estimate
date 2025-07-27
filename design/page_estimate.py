@@ -13,7 +13,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 from design.class_ComboBoxDelegate import ComboBoxDelegate
-from design.class_TableManager import EstimateTableManager
+from design.class_TableManager import EstimateTableManager, EstimateDataModel
 from design.classes import MaterialItem, WorkItem
 from design.styles import LABEL_STYLE, DATA_TABLE_STYLE, PRIMARY_BUTTON_STYLE, MESSAGE_BOX_STYLE
 
@@ -146,9 +146,9 @@ class PageEstimate(QMainWindow):
         """Выводит QMessageBox с ошибкой"""
         QMessageBox.critical(self, title, message)
         
-    def safe_format_float(self, value, default="0.00"):
+    def safe_format_float(self, value, default="0.0"):
         try:
-            return f"{float(str(value).replace(',', '.')):.2f}" if value else default
+            return f"{float(str(value).replace(',', '.')):.1f}" if value else default
         except (ValueError, TypeError):
             return default
                 
@@ -221,7 +221,6 @@ class PageEstimate(QMainWindow):
             # Содержимое документа
             elements = []
             elements.append(Paragraph("Стоимость работ", title_style))
-            elements.append(Paragraph("Расчет стоимости работ, согласно техническому заданию.", subtitle_style))
 
             # Подготовка данных таблицы
             headers = [
@@ -247,19 +246,21 @@ class PageEstimate(QMainWindow):
                     self.safe_str(work.name, "-"),
                     self.safe_str(work.unit, "-"),
                     self.safe_str(work.quantity, ""),
-                    self.safe_format_float(work.labor_cost, "0.00"),
-                    ""
+                    self.safe_format_float(work.labor_cost, "0.0"),
+                    self.safe_format_float(work.total, "0.0"),
                 ]
                 
                 if work.materials:
                     first_material = work.materials[0]
+                    total_sum = self.table_manager.model.total_sum_work_and_materials(work_idx - 1)
                     
                     work_row.extend([
                         self.safe_str(first_material.name, "-"),
                         self.safe_str(first_material.unit, "-"),
                         self.safe_str(first_material.quantity, ""),
-                        self.safe_format_float(first_material.price, "0.00"),
-                        "", ""
+                        self.safe_format_float(first_material.price, "0.0"),
+                        self.safe_format_float(work.total_materials, "0.0"),
+                        self.safe_format_float(total_sum, "0.0")
                     ])
                     
                     data.append(work_row)
@@ -271,8 +272,9 @@ class PageEstimate(QMainWindow):
                             self.safe_str(material.name, "-"),
                             self.safe_str(material.unit, "-"),
                             self.safe_str(material.quantity, ""),
-                            self.safe_format_float(material.price, "0.00"),
-                            "", ""
+                            self.safe_format_float(material.price, "0.0"),
+                            self.safe_format_float(work.total_materials, "0.0"),
+                            ""
                         ]
                         data.append(material_row)
                 else:
