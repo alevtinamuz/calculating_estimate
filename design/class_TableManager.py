@@ -322,6 +322,9 @@ class TableViewManager:
             for col in range(6):  # Объединяем только первые 6 колонок
                 self.table.setSpan(row, col, 1, 1)
 
+            self.table.setSpan(row, 11, 1, 1)
+            self.table.setSpan(row, 12, 1, 1)
+
         # Затем устанавливаем новые объединения
         current_row = 0
         for work in self.model.works:
@@ -330,6 +333,9 @@ class TableViewManager:
             if span_height > 0:  # Объединяем только если есть материалы
                 for col in range(6):
                     self.table.setSpan(current_row, col, span_height, 1)
+
+                self.table.setSpan(current_row, 11, span_height, 1)
+                self.table.setSpan(current_row, 12, span_height, 1)
             current_row += span_height
 
     def update_spans_for_work(self, work_idx, work_start_row):
@@ -342,10 +348,15 @@ class TableViewManager:
             for col in range(6):
                 self.table.setSpan(row, col, 1, 1)
 
+            self.table.setSpan(row, 11, 1, 1)
+            self.table.setSpan(row, 12, 1, 1)
+
         # Устанавливаем новые объединения, если есть материалы
         if span_height > 1:
             for col in range(6):
                 self.table.setSpan(work_start_row, col, span_height, 1)
+            self.table.setSpan(work_start_row, 11, span_height, 1)
+            self.table.setSpan(work_start_row, 12, span_height, 1)
 
     def delete_selected_work(self, work_idx, work_start_row):
         """Удаляет выбранную работу и все её материалы"""
@@ -380,15 +391,25 @@ class TableViewManager:
             work = self.model.works[work_index]
 
             if col == 3 or col == 4:
-                item = QTableWidgetItem(str(work.total))
-                if item.text() != self.table.item(row, col).text():
-                    self.table.setItem(row, 5, item)
+                item_total = QTableWidgetItem(str(work.total))
+
+                current_total = self.table.item(row, 5).text() if self.table.item(row, 5) else ""
+                if item_total.text() != current_total:
+                    self.table.setItem(row, 5, item_total)
 
             elif col == 8 or col == 9:
                 material_total_item = work.materials[row - work.row].total
                 item = QTableWidgetItem(str(material_total_item))
-                if item.text() != self.table.item(row, col).text():
+                current_total = self.table.item(row, 10).text() if self.table.item(row, 10) else ""
+
+                if item.text() != current_total:
                     self.table.setItem(row, 10, item)
+
+                item_sum_materials_in_work = QTableWidgetItem(str(work.total_materials))
+                current_sum_materials_in_work = self.table.item(row, 11).text() if self.table.item(row, 11) else ""
+
+                if item_sum_materials_in_work.text() != current_sum_materials_in_work:
+                    self.table.setItem(work.row, 11, item_sum_materials_in_work)
 
         except Exception as e:
             print(f"Ошибка при обновлении таблицы из модели: {e}")
