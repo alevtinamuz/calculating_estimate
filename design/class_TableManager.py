@@ -390,26 +390,33 @@ class TableViewManager:
 
             work = self.model.works[work_index]
 
-            if col == 3 or col == 4:
-                item_total = QTableWidgetItem(str(work.total))
+            total_sum = self.model.total_sum_work_and_materials(work_index)
+            item_col_12 = QTableWidgetItem(str(total_sum))
+            current_col_12 = self.table.item(row, 12).text() if self.table.item(row, 12) else ""
 
-                current_total = self.table.item(row, 5).text() if self.table.item(row, 5) else ""
-                if item_total.text() != current_total:
-                    self.table.setItem(row, 5, item_total)
+            if item_col_12.text() != current_col_12:
+                self.table.setItem(row, 12, item_col_12)
+
+            if col == 3 or col == 4:
+                item_col_5 = QTableWidgetItem(str(work.total))
+
+                current_col_5 = self.table.item(row, 5).text() if self.table.item(row, 5) else ""
+                if item_col_5.text() != current_col_5:
+                    self.table.setItem(row, 5, item_col_5)
 
             elif col == 8 or col == 9:
-                material_total_item = work.materials[row - work.row].total
-                item = QTableWidgetItem(str(material_total_item))
-                current_total = self.table.item(row, 10).text() if self.table.item(row, 10) else ""
+                material_total = work.materials[row - work.row].total
+                item_col_10 = QTableWidgetItem(str(material_total))
+                current_col_10 = self.table.item(row, 10).text() if self.table.item(row, 10) else ""
 
-                if item.text() != current_total:
-                    self.table.setItem(row, 10, item)
+                if item_col_10.text() != current_col_10:
+                    self.table.setItem(row, 10, item_col_10)
 
-                item_sum_materials_in_work = QTableWidgetItem(str(work.total_materials))
-                current_sum_materials_in_work = self.table.item(row, 11).text() if self.table.item(row, 11) else ""
+                item_col_11 = QTableWidgetItem(str(work.total_materials))
+                current_col_11 = self.table.item(row, 11).text() if self.table.item(row, 11) else ""
 
-                if item_sum_materials_in_work.text() != current_sum_materials_in_work:
-                    self.table.setItem(work.row, 11, item_sum_materials_in_work)
+                if item_col_11.text() != current_col_11:
+                    self.table.setItem(work.row, 11, item_col_11)
 
         except Exception as e:
             print(f"Ошибка при обновлении таблицы из модели: {e}")
@@ -523,3 +530,6 @@ class EstimateDataModel:
             s += self.works[work_idx].materials[i].total
 
         self.works[work_idx].total_materials = s
+
+    def total_sum_work_and_materials(self, work_idx):
+        return self.works[work_idx].total_materials + self.works[work_idx].total
