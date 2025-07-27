@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QTableWid
     QPushButton, QMainWindow, QFileDialog
     
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -169,11 +169,11 @@ class PageEstimate(QMainWindow):
             # Создаем документ PDF
             doc = SimpleDocTemplate(
                 file_path,
-                pagesize=A4,
-                leftMargin=1*mm,
-                rightMargin=1*mm,
+                pagesize=landscape(A4),
+                leftMargin=5*mm,
+                rightMargin=5*mm,
                 topMargin=5*mm,
-                bottomMargin=1*mm
+                bottomMargin=5*mm
             )
 
             # Регистрируем шрифты
@@ -191,7 +191,7 @@ class PageEstimate(QMainWindow):
                 fontName='Arial-Bold',
                 fontSize=16,
                 alignment=0,
-                spaceAfter=0
+                spaceAfter=5
             )
             subtitle_style = ParagraphStyle(
                 'Subtitle',
@@ -232,9 +232,9 @@ class PageEstimate(QMainWindow):
 
             # Ширины столбцов
             col_widths = [
-                6*mm, 34*mm, 13*mm, 13*mm,
-                16*mm, 16*mm, 34*mm, 13*mm,
-                13*mm, 15*mm, 15*mm, 18*mm
+                10*mm, 56*mm, 15*mm, 15*mm,
+                20*mm, 20*mm, 56*mm, 15*mm,
+                15*mm, 20*mm, 20*mm, 20*mm
             ]
             
             work_start_rows = {}
