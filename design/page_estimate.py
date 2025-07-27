@@ -1,14 +1,23 @@
 from PyQt6.QtCore import Qt, QMarginsF, QPoint, QRectF
-from PyQt6.QtGui import QPageSize, QPainter, QPageLayout, QFont
+from PyQt6.QtGui import QPageSize, QPainter, QPageLayout, QFont, QPen
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QTableWidget, QTableWidgetItem, QHBoxLayout, \
     QPushButton, QMainWindow, QFileDialog
+    
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 from design.class_ComboBoxDelegate import ComboBoxDelegate
 from design.class_TableManager import EstimateTableManager
 from design.classes import MaterialItem, WorkItem
 from design.styles import LABEL_STYLE, DATA_TABLE_STYLE, PRIMARY_BUTTON_STYLE, MESSAGE_BOX_STYLE
 
+from datetime import datetime
 
 class PageEstimate(QMainWindow):
     def __init__(self, supabase):
@@ -138,86 +147,190 @@ class PageEstimate(QMainWindow):
         QMessageBox.critical(self, title, message)
 
     def export_to_pdf(self):
-        """Экспортирует таблицу в PDF с заголовком и горизонтальными шапками"""
+        """Экспортирует таблицу в PDF с использованием reportlab"""
+        def safe_format_float(value, default="0.00"):
+            try:
+                return f"{float(str(value).replace(',', '.')):.2f}" if value else default
+            except (ValueError, TypeError):
+                return default
+
+        def safe_str(value, default=""):
+            return str(value).strip() if value else default
+
         try:
-
-            # Диалог выбора файла
+            # Настройка документа
+            current_date = datetime.now().strftime("%Y-%m-%d_%H-%M")
             file_path, _ = QFileDialog.getSaveFileName(
-                self,
-                "Сохранить как PDF",
-                "Смета.pdf",
-                "PDF Files (*.pdf)"
+                self, "Сохранить как PDF", f"Смета_{current_date}.pdf", "PDF Files (*.pdf)"
             )
-
             if not file_path:
                 return
 
-            # Настройка принтера
-            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-            printer.setOutputFileName(file_path)
-            printer.setResolution(120)
-
-            # Устанавливаем поля страницы
-            layout = QPageLayout()
-            layout.setUnits(QPageLayout.Unit.Millimeter)
-            layout.setMargins(QMarginsF(15, 20, 15, 15))
-            printer.setPageLayout(layout)
-
-            painter = QPainter()
-            if not painter.begin(printer):
-                raise Exception("Не удалось начать печать")
-
-            self.table_manager.table.setStyleSheet(DATA_TABLE_STYLE)
-
-            title = "Смета работ и материалов"
-            font = QFont("Arial", 14, QFont.Weight.Bold)
-            painter.setFont(font)
-
-            # Получаем размеры страницы
-            page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
-
-            title_rect = QRectF(0, 0, page_rect.width(), 50)
-            painter.drawText(title_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, title)
-
-            self.table_manager.table.horizontalHeader().setVisible(True)
-            table_width = self.table_manager.table.viewport().width()
-            table_height = self.table_manager.table.viewport().height() + self.table_manager.table.horizontalHeader().height()
-
-            # Рассчитываем масштаб
-            scale = min(
-                (page_rect.width() - 40) / table_width,
-                (page_rect.height() - title_rect.height() - 40) / table_height
+            # Создаем документ PDF
+            doc = SimpleDocTemplate(
+                file_path,
+                pagesize=A4,
+                leftMargin=10*mm,
+                rightMargin=10*mm,
+                topMargin=15*mm,
+                bottomMargin=15*mm
             )
 
-            # Центрируем таблицу
-            painter.translate(
-                (page_rect.width() - table_width * scale) / 2,
-                title_rect.height() + 30
+            # Регистрируем шрифты
+            try:
+                pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
+                pdfmetrics.registerFont(TTFont('Arial-Bold', 'arialbd.ttf'))
+            except:
+                pass
+
+            # Стили текста
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle(
+                'Title',
+                parent=styles['Heading1'],
+                fontName='Arial-Bold',
+                fontSize=16,
+                alignment=0,
+                spaceAfter=12
             )
-            painter.scale(scale, scale)
-
-            header = self.table_manager.table.horizontalHeader()
-            header.render(painter, QPoint(0, 0))
-
-            painter.translate(0, header.height())
-            self.table_manager.table.viewport().render(painter)
-
-            # Восстанавливаем исходное состояние
-            painter.end()
-            self.table_manager.table.setStyleSheet(DATA_TABLE_STYLE)
-
-            QMessageBox.information(
-                self,
-                "Успех",
-                f"PDF успешно сохранен:\n{file_path}"
+            subtitle_style = ParagraphStyle(
+                'Subtitle',
+                parent=styles['Heading2'],
+                fontName='Arial',
+                fontSize=12,
+                alignment=0,
+                spaceAfter=10
             )
+            table_header_style = ParagraphStyle(
+                'TableHeader',
+                parent=styles['Normal'],
+                fontName='Arial-Bold',
+                fontSize=8,
+                alignment=1,
+                leading=10
+            )
+            table_text_style = ParagraphStyle(
+                'TableText',
+                parent=styles['Normal'],
+                fontName='Arial',
+                fontSize=8,
+                leading=10,
+                wordWrap='LTR'
+            )
+
+            # Содержимое документа
+            elements = []
+            elements.append(Paragraph("Стоимость работ", title_style))
+            elements.append(Paragraph("Расчет стоимости работ, согласно техническому заданию.", subtitle_style))
+
+            # Подготовка данных таблицы
+            headers = [
+                "№", "Работы", "Ед.изм.", "Кол-во", 
+                "ФОТ/ед.", "ФОТ", "Материалы", "Ед.изм.", 
+                "Кол-во", "Цена", "Сумма", "Всего"
+            ]
+            data = [headers]
+
+            # Ширины столбцов
+            col_widths = [
+                6*mm, 34*mm, 13*mm, 13*mm,
+                16*mm, 16*mm, 34*mm, 13*mm,
+                13*mm, 15*mm, 15*mm, 18*mm
+            ]
+
+            total_labor = 0
+            total_materials = 0
+            work_start_rows = {}
+
+            for work_idx, work in enumerate(self.table_manager.model.works, 1):
+
+                work_row = [
+                    str(work_idx),
+                    safe_str(work.name, "-"),
+                    safe_str(work.unit, "-"),
+                    safe_str(work.quantity, ""),
+                    safe_format_float(work.labor_cost, "0.00"),
+                    ""
+                ]
+                
+                if work.materials:
+                    material_total = 0
+                    
+                    first_material = work.materials[0]
+                    material_sum = float(safe_format_float(first_material.price)) * float(safe_format_float(first_material.quantity))
+                    material_total += material_sum
+                    
+                    work_row.extend([
+                        safe_str(first_material.name, "-"),
+                        safe_str(first_material.unit, "-"),
+                        safe_str(first_material.quantity, ""),
+                        safe_format_float(first_material.price, "0.00"),
+                        "", ""
+                    ])
+                    
+                    data.append(work_row)
+                    work_start_rows[work_idx] = len(data) - 1
+                    
+                    for material in work.materials[1:]:                     
+                        material_row = [
+                            "", "", "", "", "", "",
+                            safe_str(material.name, "-"),
+                            safe_str(material.unit, "-"),
+                            safe_str(material.quantity, ""),
+                            safe_format_float(material.price, "0.00"),
+                            "", ""
+                        ]
+                        data.append(material_row)
+                else:
+                    data.append(work_row)
+                    work_start_rows[work_idx] = len(data) - 1
+                    
+            # Преобразуем данные в Paragraph
+            table_data = []
+            for i, row in enumerate(data):
+                if i == 0:  # Заголовки
+                    table_data.append([Paragraph(cell, table_header_style) for cell in row])
+                else:
+                    table_data.append([Paragraph(cell, table_text_style) for cell in row])
+
+            # Создаем таблицу
+            table = Table(table_data, colWidths=col_widths, repeatRows=1)
+
+            # Настройка стиля таблицы
+            table_style = [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                ('ALIGN', (6, 0), (6, -1), 'LEFT'),
+                ('ALIGN', (4, 0), (-1, -1), 'RIGHT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Arial-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('WORDWRAP', (1, 0), (1, -1), True),
+                ('WORDWRAP', (6, 0), (6, -1), True),
+            ]
+            
+            for work_idx, start_row in work_start_rows.items():
+                work = self.table_manager.model.works[work_idx - 1]
+                
+                end_row = start_row
+                if work.materials:
+                    end_row = start_row + len(work.materials) - 1
+                
+                if end_row > start_row: 
+                    for col in [0, 1, 2, 3, 4, 5, 10, 11]: 
+                        table_style.append(('SPAN', (col, start_row), (col, end_row)))
+                        
+            table.setStyle(TableStyle(table_style))
+            elements.append(table)
+            elements.append(Spacer(1, 10*mm))
+
+            # Генерация PDF
+            doc.build(elements)
+            QMessageBox.information(self, "Успех", f"PDF успешно сохранен:\n{file_path}")
 
         except Exception as e:
-            # Гарантированно восстанавливаем стили
-            self.table_manager.table.setStyleSheet(DATA_TABLE_STYLE)
-            QMessageBox.critical(
-                self,
-                "Ошибка",
-                f"Ошибка при сохранении PDF:\n{str(e)}"
-            )
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при сохранении PDF:\n{str(e)}")
