@@ -145,18 +145,18 @@ class PageEstimate(QMainWindow):
     def show_error(self, title, message):
         """Выводит QMessageBox с ошибкой"""
         QMessageBox.critical(self, title, message)
-
+        
+    def safe_format_float(self, value, default="0.00"):
+        try:
+            return f"{float(str(value).replace(',', '.')):.2f}" if value else default
+        except (ValueError, TypeError):
+            return default
+                
+    def safe_str(self, value, default=""):
+        return str(value).strip() if value else default   
+            
     def export_to_pdf(self):
         """Экспортирует таблицу в PDF с использованием reportlab"""
-        def safe_format_float(value, default="0.00"):
-            try:
-                return f"{float(str(value).replace(',', '.')):.2f}" if value else default
-            except (ValueError, TypeError):
-                return default
-
-        def safe_str(value, default=""):
-            return str(value).strip() if value else default
-
         try:
             # Настройка документа
             current_date = datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -170,10 +170,10 @@ class PageEstimate(QMainWindow):
             doc = SimpleDocTemplate(
                 file_path,
                 pagesize=A4,
-                leftMargin=10*mm,
-                rightMargin=10*mm,
-                topMargin=15*mm,
-                bottomMargin=15*mm
+                leftMargin=5*mm,
+                rightMargin=5*mm,
+                topMargin=5*mm,
+                bottomMargin=5*mm
             )
 
             # Регистрируем шрифты
@@ -237,34 +237,28 @@ class PageEstimate(QMainWindow):
                 16*mm, 16*mm, 34*mm, 13*mm,
                 13*mm, 15*mm, 15*mm, 18*mm
             ]
-
-            total_labor = 0
-            total_materials = 0
+            
             work_start_rows = {}
 
             for work_idx, work in enumerate(self.table_manager.model.works, 1):
 
                 work_row = [
                     str(work_idx),
-                    safe_str(work.name, "-"),
-                    safe_str(work.unit, "-"),
-                    safe_str(work.quantity, ""),
-                    safe_format_float(work.labor_cost, "0.00"),
+                    self.safe_str(work.name, "-"),
+                    self.safe_str(work.unit, "-"),
+                    self.safe_str(work.quantity, ""),
+                    self.safe_format_float(work.labor_cost, "0.00"),
                     ""
                 ]
                 
                 if work.materials:
-                    material_total = 0
-                    
                     first_material = work.materials[0]
-                    material_sum = float(safe_format_float(first_material.price)) * float(safe_format_float(first_material.quantity))
-                    material_total += material_sum
                     
                     work_row.extend([
-                        safe_str(first_material.name, "-"),
-                        safe_str(first_material.unit, "-"),
-                        safe_str(first_material.quantity, ""),
-                        safe_format_float(first_material.price, "0.00"),
+                        self.safe_str(first_material.name, "-"),
+                        self.safe_str(first_material.unit, "-"),
+                        self.safe_str(first_material.quantity, ""),
+                        self.safe_format_float(first_material.price, "0.00"),
                         "", ""
                     ])
                     
@@ -274,10 +268,10 @@ class PageEstimate(QMainWindow):
                     for material in work.materials[1:]:                     
                         material_row = [
                             "", "", "", "", "", "",
-                            safe_str(material.name, "-"),
-                            safe_str(material.unit, "-"),
-                            safe_str(material.quantity, ""),
-                            safe_format_float(material.price, "0.00"),
+                            self.safe_str(material.name, "-"),
+                            self.safe_str(material.unit, "-"),
+                            self.safe_str(material.quantity, ""),
+                            self.safe_format_float(material.price, "0.00"),
                             "", ""
                         ]
                         data.append(material_row)
