@@ -170,10 +170,10 @@ class PageEstimate(QMainWindow):
             doc = SimpleDocTemplate(
                 file_path,
                 pagesize=A4,
-                leftMargin=5*mm,
-                rightMargin=5*mm,
+                leftMargin=1*mm,
+                rightMargin=1*mm,
                 topMargin=5*mm,
-                bottomMargin=5*mm
+                bottomMargin=1*mm
             )
 
             # Регистрируем шрифты
@@ -191,7 +191,7 @@ class PageEstimate(QMainWindow):
                 fontName='Arial-Bold',
                 fontSize=16,
                 alignment=0,
-                spaceAfter=12
+                spaceAfter=0
             )
             subtitle_style = ParagraphStyle(
                 'Subtitle',
