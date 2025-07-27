@@ -197,9 +197,15 @@ class EstimateTableManager:
     def handle_data_change(self, top_left, bottom_right, roles):
         """Обрабатывает изменения данных в таблице"""
         if not roles or Qt.ItemDataRole.EditRole in roles:
-            for row in range(top_left.row(), bottom_right.row() + 1):
-                for col in range(top_left.column(), bottom_right.column() + 1):
-                    self.model.update_model_from_table(row, col)
+            try:
+                for row in range(top_left.row(), bottom_right.row() + 1):
+                    for col in range(top_left.column(), bottom_right.column() + 1):
+                        self.model.update_model_from_table(row, col)
+                        self.view.update_table_from_model(row, col)
+
+            except Exception as e:
+                print(f"Ошибка при обновлении данных: {e}")
+                QMessageBox.critical(self.page_estimate, "Ошибка", "Не удалось обновить данные")
 
 
 class TableViewManager:
@@ -286,10 +292,7 @@ class TableViewManager:
         self.table.selectRow(row_pos)
 
     def add_material_row(self, work_idx, work_start_row):
-        materials_count = len(self.model.works[work_idx].materials)
-        print(materials_count, "now_height")
         materials_count = self.model.works[work_idx].height
-        print(materials_count, "true_height")
 
         insert_row = work_start_row + materials_count - 1
         self.table.insertRow(insert_row)
@@ -370,29 +373,31 @@ class TableViewManager:
             # Для обычных материалов просто удаляем строку
             self.table.removeRow(selected_row)
 
+    def update_table_from_model(self, row, col):
+        try:
+            work_index, _ = self.model.find_work_by_row(row)
+
+            work = self.model.works[work_index]
+
+            if col == 3 or col == 4:
+                item = QTableWidgetItem(str(work.total))
+                if item.text() != self.table.item(row, col).text():
+                    self.table.setItem(row, 5, item)
+
+            elif col == 8 or col == 9:
+                material_total_item = work.materials[row - work.row].total
+                item = QTableWidgetItem(str(material_total_item))
+                if item.text() != self.table.item(row, col).text():
+                    self.table.setItem(row, 10, item)
+
+        except Exception as e:
+            print(f"Ошибка при обновлении таблицы из модели: {e}")
+
 
 class EstimateDataModel:
     def __init__(self, table):
         self.works = []
         self.table = table
-
-    def update_work(self, work_index, name, unit, quantity, labor_cost):
-        work = WorkItem()
-        work.name = name
-        work.unit = unit
-        work.quantity = quantity
-        work.labor_cost = labor_cost
-
-        self.works[work_index] = work
-
-    def update_material(self, work_index, material_index, name, unit, quantity, price):
-        material = MaterialItem()
-        material.name = name
-        material.unit = unit
-        material.price = price
-        material.quantity = quantity
-
-        self.works[work_index][material_index] = material
 
     def add_work(self):
         work = WorkItem()
@@ -442,37 +447,36 @@ class EstimateDataModel:
                 return
 
             value = item.text()
-            user_data = item.data(Qt.ItemDataRole.UserRole)
 
             if col <= 5:
                 if col == 1:  # Наименование работы
-                    self.works[work_idx].name = value
+                    self.works[work_idx].name = value if value else ""
                 elif col == 2:  # Ед. изм.
-                    self.works[work_idx].unit = value
+                    self.works[work_idx].unit = value if value else ""
                 elif col == 3:  # Количество
-                    self.works[work_idx].quantity = value
+                    self.works[work_idx].quantity = int(value) if value else 0
+                    self.update_work_total(work_idx)
                 elif col == 4:  # ФОТ на ед.
-                    self.works[work_idx].labor_cost = value
-                elif col == 5:  # ФОТ всего
-                    pass  # Это вычисляемое поле, не сохраняем
+                    self.works[work_idx].labor_cost = float(value) if value else 0
+                    self.update_work_total(work_idx)
+
             else:
                 material_idx = row - work_start_row
 
                 if col == 6:  # Наименование материала
-                    self.works[work_idx].materials[material_idx].name = value
+                    self.works[work_idx].materials[material_idx].name = value if value else ""
                 elif col == 7:  # Ед. изм. материала
-                    self.works[work_idx].materials[material_idx].unit = value
+                    self.works[work_idx].materials[material_idx].unit = value if value else ""
                 elif col == 8:  # Количество материала
-                    self.works[work_idx].materials[material_idx].quantity = value
+                    self.works[work_idx].materials[material_idx].quantity = int(value) if value else 0
+
+                    self.update_material_total(work_idx, material_idx)
+                    self.update_work_total_materials(work_idx)
                 elif col == 9:  # Цена материала
-                    self.works[work_idx].materials[material_idx].price = value
-                elif col == 10:  # Сумма материала
-                    pass  # Это вычисляемое поле, не сохраняем
+                    self.works[work_idx].materials[material_idx].price = float(value) if value else 0
 
-            # for i in range(len(self.works)):
-            #     for j in range(self.works[i].height):
-            #         print(i, self.works[i].name, j, self.works[i].materials[j].name)
-
+                    self.update_material_total(work_idx, material_idx)
+                    self.update_work_total_materials(work_idx)
         except Exception as e:
             print(f"Ошибка при обновлении модели из таблицы: {e}")
 
@@ -484,3 +488,17 @@ class EstimateDataModel:
                 return work.number - 1, work.row
 
         return None, None
+
+    def update_work_total(self, work_idx):
+        self.works[work_idx].total = self.works[work_idx].quantity * self.works[work_idx].labor_cost
+
+    def update_material_total(self, work_idx, material_idx):
+        material = self.works[work_idx].materials[material_idx]
+        self.works[work_idx].materials[material_idx].total = material.quantity * material.price
+
+    def update_work_total_materials(self, work_idx):
+        s = 0.0
+        for i in range(len(self.works[work_idx].materials)):
+            s += self.works[work_idx].materials[i].total
+
+        self.works[work_idx].total_materials = s
