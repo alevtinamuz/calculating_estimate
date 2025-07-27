@@ -35,12 +35,34 @@ class EstimateTableManager:
         """Добавляет новую работу с автоматическим объединением"""
         try:
             self.table.setUpdatesEnabled(False)
+        
+            selected_ranges = self.table.selectedRanges()
+            if not selected_ranges:
+                insert_pos = self.table.rowCount()
+                work_idx = len(self.model.works)
+            else:
+                work_idx, work_start_row = self.view.find_selected_work()
+                
+                if work_idx is None:
+                    insert_pos = self.table.rowCount()
+                    work_idx = len(self.model.works)
+                else:
+                    insert_pos = work_start_row + self.model.works[work_idx].height
+                    work_idx += 1
 
-            self.model.add_work()
-            self.view.add_work_row()
-
+            self.model.add_work_at_position(work_idx, insert_pos)
+            
+            self.table.insertRow(insert_pos)
+            self.view.fill_work_row(insert_pos, work_idx + 1)
+            
+            for i in range(work_idx + 1, len(self.model.works)):
+                self.model.works[i].number += 1
+                if self.table.item(self.model.works[i].row, 0):
+                    self.table.item(self.model.works[i].row, 0).setText(str(self.model.works[i].number))
+            
+            # Обновляем объединения
             self.view.update_all_spans()
-            self.view.renumber_rows()
+            self.table.selectRow(insert_pos)
 
         except Exception as e:
             print(f"Ошибка при добавлении работы: {e}")
@@ -308,8 +330,12 @@ class TableViewManager:
             return None, None
 
         selected_row = selected_ranges[0].topRow()
-
-        return self.model.find_work_by_row(selected_row)
+        
+        for i, work in enumerate(self.model.works):
+            if work.row <= selected_row < work.row + work.height:
+                return i, work.row
+        
+        return None, None
 
     def clear_all_data(self):
         """Полностью очищает таблицу"""
@@ -461,6 +487,19 @@ class EstimateDataModel:
 
     def clear_all_data(self):
         self.works.clear()
+        
+    def add_work_at_position(self, work_index, row_position):
+        """Добавляет работу в указанную позицию"""
+        work = WorkItem()
+        work.row = row_position
+        work.number = work_index + 1  # Нумерация с 1
+        
+        # Вставляем работу в указанную позицию
+        self.works.insert(work_index, work)
+        
+        # Обновляем позиции последующих работ
+        for i in range(work_index + 1, len(self.works)):
+            self.works[i].row += 1
 
     def update_model_from_table(self, row, col):
         """Обновляет модель на основе изменений в таблице"""
