@@ -16,7 +16,7 @@ class MaterialItem:
     def __init__(self):
         self.name = ""
         self.unit = ""
-        self.quantity = 0
+        self.quantity = 1
         self.price = 0.0
         self.total = 0.0
         self.row = 0

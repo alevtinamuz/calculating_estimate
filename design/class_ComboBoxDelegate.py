@@ -240,6 +240,9 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
                     unit_index = model.index(index.row(), 2)
                     model.setData(unit_index, entity['unit'])
+                    
+                    quantity_index = model.index(index.row(), 3)
+                    model.setData(quantity_index, 1)
 
                 elif index.column() == 6:  # Обработка материала
 
@@ -257,6 +260,9 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
                         unit_index = model.index(index.row(), 7)
                         model.setData(unit_index, entity['unit'])
+                        
+                        quantity_index = model.index(index.row(), 8)
+                        model.setData(quantity_index, 1)
 
             except IndexError as ie:
                 print(f"Ошибка индекса при обновлении данных: {ie}")
