@@ -4,6 +4,8 @@ from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QTableWidget, QTableWidgetItem, QHBoxLayout, \
     QPushButton, QMainWindow, QFileDialog
     
+import os
+from reportlab.platypus import Image
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -180,6 +182,7 @@ class PageEstimate(QMainWindow):
             try:
                 pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
                 pdfmetrics.registerFont(TTFont('Arial-Bold', 'arialbd.ttf'))
+                pdfmetrics.registerFont(TTFont('Arial-BoldItalic', 'arialbi.ttf'))
             except:
                 pass
 
@@ -217,18 +220,72 @@ class PageEstimate(QMainWindow):
                 leading=10,
                 wordWrap='LTR'
             )
+            summary_text_style = ParagraphStyle(
+                'SummaryText',
+                parent=styles['Normal'],
+                fontName='Arial-BoldItalic',
+                alignment=2,
+                fontSize=8,
+                leading=10
+            )
+            summary_value_style = ParagraphStyle(
+                'SummaryValue',
+                parent=styles['Normal'],
+                fontName='Arial-BoldItalic',
+                alignment=1,
+                fontSize=8,
+                leading=10
+            )
+            summary_title_style = ParagraphStyle(
+                'SummaryTitle',
+                parent=styles['Normal'],
+                fontName='Arial-Bold',
+                alignment=1,
+                fontSize=8,
+                leading=10
+            )
 
             # Содержимое документа
             elements = []
-            elements.append(Paragraph("Стоимость работ", title_style))
+            try:
+                # Используем os.path для формирования пути к логотипу
+                logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+                if os.path.exists(logo_path):
+                    # Создаем таблицу с двумя колонками для логотипа и заголовка
+                    logo_table_data = [
+                        [Image(logo_path, width=100, height=100), Paragraph("Стоимость работ", title_style)]
+                    ]
+                    logo_table = Table(logo_table_data, colWidths=[100, doc.width-100])
+                    logo_table.setStyle(TableStyle([
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+                    ]))
+                    elements.append(logo_table)
+                else:
+                    elements.append(Paragraph("Стоимость работ", title_style))
+                    print("Логотип не найден по пути:", logo_path)
+            except Exception as logo_error:
+                elements.append(Paragraph("Стоимость работ", title_style))
+                print(f"Не удалось загрузить логотип: {logo_error}")
+
 
             # Подготовка данных таблицы
             headers = [
-                "№", "Работы", "Ед.изм.", "Кол-во", 
-                "ФОТ/ед.", "ФОТ", "Материалы", "Ед.изм.", 
-                "Кол-во", "Цена", "Сумма", "Всего"
+                "№ п/п", "Наименование работ и затрат", "Ед.изм.", "К-во", 
+                "Фактический ФОТ", "Фактический ФОТ", "Наименование материалов", "Ед.изм.", 
+                "", "", "", "Всего"
             ]
-            data = [headers]
+            
+            fot_labels = [
+                "", "", "", "", 
+                "на ед.", "всего", "", "",
+                "К-во", "Цена", "Сумма", ""
+            ]
+            
+            
+            
+            data = [headers, fot_labels]
 
             # Ширины столбцов
             col_widths = [
@@ -281,21 +338,78 @@ class PageEstimate(QMainWindow):
                     data.append(work_row)
                     work_start_rows[work_idx] = len(data) - 1
                     
+            summary_rows = [
+                ["Доставка материала, работа грузчиков, подъем материала, тарирование мусора, вынос/вывоз мусора (15% от стоимости материалов):"] + 
+                [""] * 10 + 
+                [self.safe_format_float(0.0, "0.0")],
+                
+                ["Сметный расчёт"] + [""] * (len(headers) - 1),
+                
+                ["Итого без НДС:"] + [""] * 10 + [self.safe_format_float(0.0, "0.0")],
+                
+                ["В т.ч. ФОТ:"] + [""] * 10 + [self.safe_format_float(0.0, "0.0")],
+                
+                ["В т.ч. Материалы:"] + [""] * 10 + [self.safe_format_float(0.0, "0.0")]
+            ]
+            
+            data.extend(summary_rows)
+                    
+            summary_start_index = len(data) - len(summary_rows)
+            
             # Преобразуем данные в Paragraph
             table_data = []
             for i, row in enumerate(data):
                 if i == 0:  # Заголовки
-                    table_data.append([Paragraph(cell, table_header_style) for cell in row])
+                    table_data.append([Paragraph(cell, table_header_style) for cell in headers])
+                elif i == 1:
+                    table_data.append([Paragraph(str(label), table_header_style) for label in fot_labels])
                 else:
-                    table_data.append([Paragraph(cell, table_text_style) for cell in row])
+                    if i >= summary_start_index:
+                        if i == summary_start_index:
+                            table_data.append([
+                                Paragraph(row[0], summary_text_style),
+                                *[Paragraph("", table_text_style) for _ in range(10)],
+                                Paragraph(row[-1], summary_value_style)
+                            ])
+                        elif i == summary_start_index + 1:
+                            table_data.append([
+                                Paragraph(row[0], summary_title_style),
+                                *[Paragraph("", table_text_style) for _ in range(11)]
+                            ])
+                        else:
+                            table_data.append([
+                                Paragraph(row[0], summary_text_style),
+                                *[Paragraph("", table_text_style) for _ in range(10)],
+                                Paragraph(row[-1], summary_value_style)
+                            ])
+                    else:
+                        table_data.append([Paragraph(cell, table_text_style) for cell in row])
 
             # Создаем таблицу
-            table = Table(table_data, colWidths=col_widths, repeatRows=1)
+            table = Table(table_data, colWidths=col_widths, repeatRows=2)
 
             # Настройка стиля таблицы
             table_style = [
-                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('SPAN', (4, 0), (5, 0)),
+                ('ALIGN', (4, 0), (4, 0), 'CENTER'),
+                
+                ('SPAN', (7, 0), (10, 0)),
+                ('ALIGN', (4, 0), (4, 0), 'CENTER'),
+                
+                ('SPAN', (0, 0), (0, 1)),
+                ('SPAN', (1, 0), (1, 1)),
+                ('SPAN', (2, 0), (2, 1)),
+                ('SPAN', (3, 0), (3, 1)),
+                ('SPAN', (6, 0), (6, 1)),
+                ('SPAN', (7, 0), (7, 1)),
+                ('SPAN', (11, 0), (11, 1)),
+                
+                ('BACKGROUND', (0, 0), (-1, 1), colors.lightgrey),
+                ('TEXTCOLOR', (0, 0), (-1, 1), colors.black),
+                ('FONTNAME', (0, 0), (-1, 1), 'Arial-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 1), 4),
+                
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('ALIGN', (1, 0), (1, -1), 'LEFT'),
                 ('ALIGN', (6, 0), (6, -1), 'LEFT'),
@@ -320,6 +434,23 @@ class PageEstimate(QMainWindow):
                     for col in [0, 1, 2, 3, 4, 5, 10, 11]: 
                         table_style.append(('SPAN', (col, start_row), (col, end_row)))
                         
+            summary_start = len(data) - len(summary_rows)
+        
+            table_style.extend([
+                ('SPAN', (0, summary_start), (10, summary_start)),
+                
+                ('SPAN', (0, summary_start + 1), (11, summary_start + 1)),
+                ('ALIGN', (0, summary_start + 1), (0, summary_start + 1), 'CENTER'),
+                ('BACKGROUND', (0, summary_start + 1), (11, summary_start + 1), colors.lightgrey),
+                ('TEXTCOLOR', (0, summary_start + 1), (11, summary_start + 1), colors.black),
+                
+                ('SPAN', (0, summary_start + 2), (10, summary_start + 2)),
+                ('SPAN', (0, summary_start + 3), (10, summary_start + 3)),
+                ('SPAN', (0, summary_start + 4), (10, summary_start + 4)),
+                
+                ('FONTNAME', (0, summary_start), (11, summary_start + 4), 'Arial-Bold'),
+            ])
+            
             table.setStyle(TableStyle(table_style))
             elements.append(table)
             elements.append(Spacer(1, 10*mm))
