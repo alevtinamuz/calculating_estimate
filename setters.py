@@ -54,7 +54,7 @@ def update_category_id_of_material(supabase, id, new_category_id):
   
 def update_category_id_of_work(supabase, id, new_category_id):
   response = (
-    supabase.table("work")
+    supabase.table("works")
     .update({"category_id": new_category_id})
     .eq("id", id)
     .execute()
@@ -118,11 +118,6 @@ def add_work(supabase, category_id, name, price, unit):
   
 def delete_material_category(supabase, id):
   response = (
-    supabase.table("materials")
-    .delete()
-    .eq("category_id", id)
-    .execute(),
-    
     supabase.table("materials_categories")
     .delete()
     .eq("id", id)
@@ -131,11 +126,6 @@ def delete_material_category(supabase, id):
   
 def delete_work_category(supabase, id):
   response = (
-    supabase.table("works")
-    .delete()
-    .eq("category_id", id)
-    .execute(),
-    
     supabase.table("works_categories")
     .delete()
     .eq("id", id)
@@ -157,3 +147,85 @@ def delete_work(supabase, id):
     .eq("id", id)
     .execute()
   )
+  
+def clear_table(supabase, name_of_table: str):
+  repsonse = (
+    supabase.table(name_of_table)
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000')
+    .execute()
+  )
+  
+def upsert_work(supabase, category_id, name, price, unit):
+    """Обновляет или создает работу (без указания ID)"""
+    supabase.table('works').upsert({
+        'category_id': category_id,
+        'name': name,
+        'price': price,
+        'unit': unit
+    }).execute()
+
+def upsert_material(supabase, category_id, name, price, unit):
+    """Обновляет или создает материал (без указания ID)"""
+    supabase.table('materials').upsert({
+        'category_id': category_id,
+        'name': name,
+        'price': price,
+        'unit': unit
+    }).execute()
+
+def upsert_work_category(supabase, name):
+    """Обновляет или создает категорию работ"""
+    supabase.table('works_categories').upsert({
+        'name': name
+    }).execute()
+
+def upsert_material_category(supabase, name):
+    """Обновляет или создает категорию материалов"""
+    supabase.table('materials_categories').upsert({
+        'name': name
+    }).execute()
+    
+def batch_insert_works_fast(supabase, items):
+    """Быстрая пакетная вставка работ"""
+    data = [{
+        'category_id': item['category_id'],
+        'name': item['name'],
+        'price': item['price'],
+        'unit': item['unit']
+    } for item in items]
+    supabase.table('works').insert(data, returning='minimal').execute()
+
+def batch_insert_materials_fast(supabase, items):
+    """Быстрая пакетная вставка материалов"""
+    data = [{
+        'category_id': item['category_id'],
+        'name': item['name'],
+        'price': item['price'],
+        'unit': item['unit']
+    } for item in items]
+    supabase.table('materials').insert(data, returning='minimal').execute()
+
+def batch_insert_work_categories_fast(supabase, items):
+    """Быстрая пакетная вставка категорий работ"""
+    data = [{'name': item['name']} for item in items]
+    supabase.table('works_categories').insert(data, returning='minimal').execute()
+
+def batch_insert_material_categories_fast(supabase, items):
+    """Быстрая пакетная вставка категорий материалов"""
+    data = [{'name': item['name']} for item in items]
+    supabase.table('materials_categories').insert(data, returning='minimal').execute()
+    
+def batch_insert_work_categories_with_ids(supabase, items):
+    """Пакетная вставка категорий работ с сохранением ID"""
+    response = supabase.rpc('batch_insert_work_categories_with_ids', {
+        'items': items
+    }).execute()
+    return response
+
+def batch_insert_material_categories_with_ids(supabase, items):
+    """Пакетная вставка категорий материалов с сохранением ID"""
+    response = supabase.rpc('batch_insert_material_categories_with_ids', {
+        'items': items
+    }).execute()
+    return response

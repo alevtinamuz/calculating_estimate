@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import sys
 from PyQt6.QtWidgets import *
 from PyQt6 import uic
+from design.app_window import MainWindow
 
 
 load_dotenv()
@@ -15,6 +16,18 @@ supabase: Client = create_client(
     os.getenv("SUPABASE_URL"),
     os.getenv("SUPABASE_KEY")
 )
+
+# substr = 'клей-пена'
+# getters.get_materials_by_substr(supabase, substr)
+
+# setters.add_work(supabase, 2, "каракуля", 88.88, "шт")
+
+app = QApplication(sys.argv)
+
+window = MainWindow(supabase)
+window.show()  # Хотя showFullScreen() уже вызван в классе
+
+sys.exit(app.exec())
 
 # cat_name = 'Утеплители'
 # getters.get_materials_by_category(supabase, cat_name)
