@@ -142,6 +142,7 @@ class EstimateTableManager:
     def delete_selected_material(self):
         """Удаляет выбранный материал"""
         try:
+            print('start delete')
             selected_ranges = self.view.table.selectedRanges()
             if not selected_ranges:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбран ни один материал для удаления")
@@ -189,6 +190,12 @@ class EstimateTableManager:
             self.model.delete_material(work_idx, material_idx)
             self.view.update_spans_for_work(work_idx, work_start_row)
 
+            self.view.update_table_from_model(work_start_row, 11)
+            self.view.update_table_from_model(work_start_row, 12)
+            self.view_results.update_result_table()
+
+            print('end delete')
+
         except Exception as e:
             print(f"Ошибка при удалении материала: {e}")
             raise
@@ -211,6 +218,7 @@ class EstimateTableManager:
 
             self.view.clear_all_data()
             self.model.clear_all_data()
+            self.view_results.clear_all_data()
 
         except Exception as e:
             print(f"Ошибка при очистке таблицы: {e}")
@@ -229,6 +237,7 @@ class EstimateTableManager:
                         self.model.update_model_from_table(row, col)
                         self.view.update_table_from_model(row, col)
                         self.view_results.update_result_table()
+                        print("handle_data_change")
 
             except Exception as e:
                 print(f"Ошибка при обновлении данных: {e}")
@@ -451,6 +460,13 @@ class TableViewManager:
                 if item_col_11.text() != current_col_11:
                     self.table.setItem(work.row, 11, item_col_11)
 
+            elif col == 11:
+                item_col_11 = QTableWidgetItem(str(work.total_materials))
+                current_col_11 = self.table.item(row, 11).text() if self.table.item(row, 11) else ""
+
+                if item_col_11.text() != current_col_11:
+                    self.table.setItem(work.row, 11, item_col_11)
+
         except Exception as e:
             print(f"Ошибка при обновлении таблицы из модели: {e}")
 
@@ -554,6 +570,15 @@ class TableResultsViewManager:
 
         self.table.setItem(3, 1, QTableWidgetItem(str(materials_sum)))
 
+    def clear_all_data(self):
+        self.table.setItem(0, 1, QTableWidgetItem(""))
+
+        self.table.setItem(1, 1, QTableWidgetItem(""))
+
+        self.table.setItem(2, 1, QTableWidgetItem(""))
+
+        self.table.setItem(3, 1, QTableWidgetItem(""))
+
 
 class EstimateDataModel:
     def __init__(self, table):
@@ -591,6 +616,8 @@ class EstimateDataModel:
         del self.works[work_index].materials[material_index]
 
         self.works[work_index].height -= 1
+
+        self.update_total_materials(work_index)
 
     def clear_all_data(self):
         self.works.clear()
@@ -645,10 +672,12 @@ class EstimateDataModel:
                     self.works[work_idx].materials[material_idx].quantity = round(float(value), 1) if value else 0.0
 
                     self.update_material_total(work_idx, material_idx)
+                    self.update_total_materials(work_idx)
                 elif col == 9:  # Цена материала
                     self.works[work_idx].materials[material_idx].price = round(float(value), 1) if value else 0.0
 
                     self.update_material_total(work_idx, material_idx)
+                    self.update_total_materials(work_idx)
         except Exception as e:
             print(f"Ошибка при обновлении модели из таблицы: {e}")
 
@@ -668,6 +697,7 @@ class EstimateDataModel:
         material = self.works[work_idx].materials[material_idx]
         self.works[work_idx].materials[material_idx].total = round(material.quantity * material.price, 1)
 
+    def update_total_materials(self, work_idx):
         s = 0.0
         for i in range(len(self.works[work_idx].materials)):
             s += self.works[work_idx].materials[i].total
