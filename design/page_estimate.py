@@ -292,9 +292,9 @@ class PageEstimate(QMainWindow):
 
             # Ширины столбцов
             col_widths = [
-                10*mm, 56*mm, 15*mm, 15*mm,
-                20*mm, 20*mm, 56*mm, 15*mm,
-                15*mm, 20*mm, 20*mm, 20*mm
+                10*mm, 53*mm, 15*mm, 15*mm,
+                21*mm, 21*mm, 53*mm, 15*mm,
+                15*mm, 21*mm, 21*mm, 22*mm
             ]
             
             work_start_rows = {}
@@ -341,20 +341,24 @@ class PageEstimate(QMainWindow):
                     data.append(work_row)
                     work_start_rows[work_idx] = len(data) - 1
                     
+            works_sum = sum([work.total for work in self.table_manager.model.works])
+            materials_sum = sum([work.total_materials for work in self.table_manager.model.works])
+            summary_sum = works_sum + materials_sum
+            
             summary_rows = [
                 ["Доставка материала, работа грузчиков, подъем материала, тарирование мусора, вынос/вывоз мусора (15% от стоимости материалов):"] +
                 [""] * 10 +
-                [self.safe_format_float(0.0, "0.0")],
+                [self.safe_format_float(materials_sum * 0.15, "0.0")],
 
                 ["Сметный расчёт"] + [""] * (len(headers) - 1),
 
-                ["Итого без НДС:"] + [""] * 10 + [self.safe_format_float(0.0, "0.0")],
+                ["Итого без НДС:"] + [""] * 10 + [self.safe_format_float(summary_sum, "0.0")],
 
-                ["В т.ч. ФОТ:"] + [""] * 10 + [self.safe_format_float(0.0, "0.0")],
+                ["В т.ч. ФОТ:"] + [""] * 10 + [self.safe_format_float(works_sum, "0.0")],
 
-                ["В т.ч. Материалы:"] + [""] * 10 + [self.safe_format_float(0.0, "0.0")]
+                ["В т.ч. Материалы:"] + [""] * 10 + [self.safe_format_float(materials_sum, "0.0")]
             ]
-
+            
             data.extend(summary_rows)
 
             summary_start_index = len(data) - len(summary_rows)

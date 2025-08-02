@@ -1,10 +1,33 @@
-from PyQt6.QtCore import Qt, QPoint, QStringListModel
+from PyQt6.QtCore import Qt, QPoint, QStringListModel, QLocale
 from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit, \
     QListWidget, QListWidgetItem, QDoubleSpinBox
+from PyQt6.QtGui import QDoubleValidator, QValidator
 
 import getters
 from design.styles import DROPDOWN_DELEGATE_STYLE, SPIN_BOX_STYLE
 
+
+class DoubleSpinBox(QDoubleSpinBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # Устанавливаем локаль (например, русскую, чтобы по умолчанию использовалась запятая)
+        self.setLocale(QLocale(QLocale.Language.Russian))  # или QLocale('en') для точки
+    
+    def validate(self, text, pos):
+        # Разрешаем и точку, и запятую
+        if '.' in text:
+            text = text.replace('.', ',')  # заменяем точку на запятую
+            pos = text.find(',') + 1 if ',' in text else pos
+        return super().validate(text, pos)
+    
+    def valueFromText(self, text):
+        # Приводим введённый текст к формату с запятой
+        text = text.replace('.', ',')
+        return super().valueFromText(text)
+    
+    def textFromValue(self, value):
+        # Форматируем вывод в соответствии с локалью
+        return self.locale().toString(value, 'f', self.decimals())
 
 class ComboBoxDelegate(QStyledItemDelegate):
     def __init__(self, parent, supabase, main_window):
@@ -77,7 +100,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 return super().createEditor(parent, option, index)
 
         elif index.column() in [3, 8]:  # Ячейки с количеством
-            editor = QDoubleSpinBox(parent)
+            editor = DoubleSpinBox(parent)
             editor.setMinimum(0.0)
             editor.setMaximum(999999.9)
             editor.setDecimals(1)
