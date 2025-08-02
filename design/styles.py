@@ -276,12 +276,12 @@ CONTEXT_MENU_STYLE = f"""
 """
 
 SPIN_BOX_STYLE = f"""
-    QSpinBox {{
+    QDoubleSpinBox {{
         background-color: white;
         color: {BLACK};
     }}
     
-    QTableWidget QSpinBox {{
+    QTableWidget QDoubleSpinBox {{
         color: {BLACK} !important;
     }}
     
