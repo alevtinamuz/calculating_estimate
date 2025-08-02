@@ -61,6 +61,7 @@ DATA_TABLE_STYLE = f"""
         gridline-color: {DARK_GRAY};
         outline: 0;
         font-size: 14px;
+        margin-top: 20px
     }}
 
     QHeaderView::section {{
