@@ -67,14 +67,14 @@ class PageDB(QMainWindow):
                 data = getters.sort_by_id(self.supabase, self.current_table, 'id') 
                 column_order = ['id', 'name']
                 header_names = {
-                    'id': 'ID',
+                    'id': '№',
                     'name': 'Название категории'
                 }
             else:
                 data = getters.sort_by_id(self.supabase, self.current_table, 'category_id') 
                 column_order = ['id', 'category_id', 'name', 'price', 'unit']
                 header_names = {
-                    'id': 'ID',
+                    'id': '№',
                     'category_id': 'Категория',
                     'name': 'Название',
                     'price': 'Цена',
@@ -107,16 +107,21 @@ class PageDB(QMainWindow):
             # Заполняем таблицу данными
             for row_idx, row_data in enumerate(data):
                 for col_idx, column_name in enumerate(column_order):
-                    value = row_data[column_name]
-                    
-                    # Заменяем category_id на название категории, но сохраняем оригинальный ID
-                    if column_name == 'category_id' and self.current_table in ['works', 'materials']:
-                        original_id = value
-                        value = category_names.get(str(value), str(value))
-                        item = QTableWidgetItem(str(value))
-                        item.setData(Qt.ItemDataRole.UserRole, original_id)  # Сохраняем оригинальный ID
+                    if column_name == 'id':
+                        # Создаем элемент с порядковым номером
+                        item = QTableWidgetItem(str(row_idx + 1))
+                        # Сохраняем оригинальный ID в данных элемента
+                        item.setData(Qt.ItemDataRole.UserRole, row_data['id'])
                     else:
-                        item = QTableWidgetItem(str(value))
+                        value = row_data[column_name]
+                        # Заменяем category_id на название категории, но сохраняем оригинальный ID
+                        if column_name == 'category_id' and self.current_table in ['works', 'materials']:
+                            original_id = value
+                            value = category_names.get(str(value), str(value))
+                            item = QTableWidgetItem(str(value))
+                            item.setData(Qt.ItemDataRole.UserRole, original_id)  # Сохраняем оригинальный ID
+                        else:
+                            item = QTableWidgetItem(str(value))
 
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table_db.setItem(row_idx, col_idx, item)
