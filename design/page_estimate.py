@@ -2,8 +2,8 @@ from PyQt6.QtCore import Qt, QMarginsF, QPoint, QRectF
 from PyQt6.QtGui import QPageSize, QPainter, QPageLayout, QFont, QPen
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QTableWidget, QTableWidgetItem, QHBoxLayout, \
-    QPushButton, QMainWindow, QFileDialog
-    
+    QPushButton, QMainWindow, QFileDialog, QSizePolicy
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -55,15 +55,18 @@ class PageEstimate(QMainWindow):
             estimate_container = QWidget()
             layout = QVBoxLayout(estimate_container)
 
-            # Создаем таблицу как атрибут класса
             self.table_estimate = QTableWidget()
+            self.table_results = QTableWidget()
+            self.table_manager = EstimateTableManager(self.table_estimate, self.table_results, self.supabase, self)
 
-            self.table_manager = EstimateTableManager(self.table_estimate, self.supabase, self)
+            layout.addWidget(self.table_estimate, stretch=10)
+            layout.addWidget(self.table_results, stretch=3)
 
-            layout.addWidget(self.table_estimate)
+            self.table_manager.view.adjust_column_widths()
+            self.table_manager.view_results.adjust_column_widths()
 
             button_panel = self.create_button_panel()
-            layout.addWidget(button_panel)
+            layout.addWidget(button_panel, stretch=1)
 
             estimate_container.setLayout(layout)
 
@@ -75,6 +78,9 @@ class PageEstimate(QMainWindow):
             self.show_error("Ошибка создания таблицы", str(e))
             print(f"Ошибка создания таблицы: {e}")
             raise
+
+    # def create_estimate_results(self):
+    #     self.table_estimate = QTableWidget()
 
     def add_row_work(self):
         """Добавляет строку с работой в таблицу"""

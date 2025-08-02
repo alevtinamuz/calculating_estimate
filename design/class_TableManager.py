@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt, QPoint, QRectF, QMarginsF
 from PyQt6.QtGui import QFont, QPainter, QPageLayout
 from PyQt6.QtPrintSupport import QPrinter
-from PyQt6.QtWidgets import QMessageBox, QFileDialog, QTableWidgetItem, QTableWidget
+from PyQt6.QtWidgets import QMessageBox, QFileDialog, QTableWidgetItem, QTableWidget, QHeaderView
 
 from design.class_ComboBoxDelegate import ComboBoxDelegate
 from design.classes import MaterialItem, WorkItem
@@ -9,8 +9,9 @@ from design.styles import DATA_TABLE_STYLE
 
 
 class EstimateTableManager:
-    def __init__(self, table_widget, supabase, page_estimate):
+    def __init__(self, table_widget, table_results, supabase, page_estimate):
         self.table = table_widget
+        self.table_results = table_results
         self.supabase = supabase
         self.page_estimate = page_estimate
 
@@ -18,6 +19,9 @@ class EstimateTableManager:
 
         self.view = TableViewManager(table_widget)
         self.view.set_model(self.model)
+
+        self.view_results = TableResultsViewManager(table_results)
+        self.view_results.set_model(self.model)
 
         self.setup_table()
 
@@ -35,14 +39,14 @@ class EstimateTableManager:
         """Добавляет новую работу с автоматическим объединением"""
         try:
             self.table.setUpdatesEnabled(False)
-        
+
             selected_ranges = self.table.selectedRanges()
             if not selected_ranges:
                 insert_pos = self.table.rowCount()
                 work_idx = len(self.model.works)
             else:
                 work_idx, work_start_row = self.view.find_selected_work()
-                
+
                 if work_idx is None:
                     insert_pos = self.table.rowCount()
                     work_idx = len(self.model.works)
@@ -51,15 +55,15 @@ class EstimateTableManager:
                     work_idx += 1
 
             self.model.add_work_at_position(work_idx, insert_pos)
-            
+
             self.table.insertRow(insert_pos)
             self.view.fill_work_row(insert_pos, work_idx + 1)
-            
+
             for i in range(work_idx + 1, len(self.model.works)):
                 self.model.works[i].number += 1
                 if self.table.item(self.model.works[i].row, 0):
                     self.table.item(self.model.works[i].row, 0).setText(str(self.model.works[i].number))
-            
+
             # Обновляем объединения
             self.view.update_all_spans()
             self.table.selectRow(insert_pos)
@@ -78,7 +82,7 @@ class EstimateTableManager:
             # Если нет работ, добавляем новую
             if not self.model.works:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для добавления "
-                                                                        "материала")
+                                                                          "материала")
                 return
 
             work_idx, work_start_row = self.view.find_selected_work()
@@ -244,6 +248,7 @@ class TableViewManager:
         """Настройка таблицы"""
         self.configure_table_appearance()
         self.setup_headers()
+        # self.adjust_column_widths()
 
     def configure_table_appearance(self):
         """Настраивает внешний вид таблицы"""
@@ -265,6 +270,7 @@ class TableViewManager:
         ]
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
+        self.table.verticalHeader().setVisible(False)
 
     def fill_work_row(self, row, number):
         """Заполняет строку работы"""
@@ -330,11 +336,11 @@ class TableViewManager:
             return None, None
 
         selected_row = selected_ranges[0].topRow()
-        
+
         for i, work in enumerate(self.model.works):
             if work.row <= selected_row < work.row + work.height:
                 return i, work.row
-        
+
         return None, None
 
     def clear_all_data(self):
@@ -447,6 +453,93 @@ class TableViewManager:
         except Exception as e:
             print(f"Ошибка при обновлении таблицы из модели: {e}")
 
+    def adjust_column_widths(self):
+        screen_width = self.table.parent().window().screen().availableGeometry().width()
+
+        table_width = screen_width - 30
+
+        # Устанавливаем фиксированную ширину таблицы
+        self.table.setFixedWidth(table_width)
+
+        percents_section = {
+            0: 0.035,  # п/п
+            1: 0.14,  # Наименование работ
+            2: 0.04,  # Ед. изм
+            3: 0.05,  # К-во
+            4: 0.075,  # ФОТ на ед
+            5: 0.075,  # ФОТ всего
+            6: 0.14,  # Материалы
+            7: 0.04,  # Ед. изм
+            8: 0.05,  # К-во
+            9: 0.075,  # Цена
+            10: 0.075,  # Сумма
+            11: 0.075,  # Сумма по материалам
+            12: 0.075  # Всего
+        }
+
+        for col, percent in percents_section.items():
+            width = int(table_width * percent)
+            self.table.setColumnWidth(col, width)
+
+
+class TableResultsViewManager:
+    def __init__(self, table):
+        self.table = table
+        self.model = None
+
+        self.setup_table()
+
+    def set_model(self, model):
+        self.model = model
+
+    def setup_table(self):
+        """Настройка таблицы"""
+        self.configure_table_appearance()
+        self.setup_headers()
+
+    def configure_table_appearance(self):
+        """Настраивает внешний вид таблицы"""
+        self.table.setStyleSheet(DATA_TABLE_STYLE)
+        self.table.setShowGrid(False)
+        self.table.setEditTriggers(
+            QTableWidget.EditTrigger.DoubleClicked |
+            QTableWidget.EditTrigger.EditKeyPressed
+        )
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+
+    def setup_headers(self):
+        """Устанавливает заголовки таблицы"""
+        self.table.setColumnCount(2)
+        self.table.setRowCount(4)
+
+        self.table.horizontalHeader().setVisible(False)
+        self.table.verticalHeader().setVisible(False)
+
+        self.table.setItem(0, 0, QTableWidgetItem("Доставка материала, работа грузчиков, подьем материала, "
+                                                  "тарирование мусора, вынос/вывоз мусора (15% от стоимости "
+                                                  "материалов)"))
+        self.table.setItem(1, 0, QTableWidgetItem("Итого без НДС"))
+        self.table.setItem(2, 0, QTableWidgetItem("В т.ч. ФОТ"))
+        self.table.setItem(3, 0, QTableWidgetItem("В т.ч. Материалы"))
+
+    def adjust_column_widths(self):
+        screen_width = self.table.window().screen().availableGeometry().width()
+
+        table_width = screen_width - 30
+
+        # Устанавливаем фиксированную ширину таблицы
+        self.table.setFixedWidth(table_width)
+
+        percents_section = {
+            0: 0.865,  # п/п
+            1: 0.075,  # Наименование работ
+        }
+
+        for col, percent in percents_section.items():
+            width = int(table_width * percent)
+            self.table.setColumnWidth(col, width)
+
 
 class EstimateDataModel:
     def __init__(self, table):
@@ -487,16 +580,16 @@ class EstimateDataModel:
 
     def clear_all_data(self):
         self.works.clear()
-        
+
     def add_work_at_position(self, work_index, row_position):
         """Добавляет работу в указанную позицию"""
         work = WorkItem()
         work.row = row_position
         work.number = work_index + 1  # Нумерация с 1
-        
+
         # Вставляем работу в указанную позицию
         self.works.insert(work_index, work)
-        
+
         # Обновляем позиции последующих работ
         for i in range(work_index + 1, len(self.works)):
             self.works[i].row += 1
