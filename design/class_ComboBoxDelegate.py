@@ -131,7 +131,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 editor_height = editor.sizeHint().height()
                 editor_width = max(rect.width(), 300)
 
-                editor_x = global_pos.x() - 100
+                editor_x = global_pos.x() - 30
 
                 if global_pos.y() + editor_height > screen_geometry.bottom():
                     editor_y = global_pos.y() - editor_height - rect.height()

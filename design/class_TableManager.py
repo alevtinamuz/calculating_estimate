@@ -228,6 +228,7 @@ class EstimateTableManager:
                     for col in range(top_left.column(), bottom_right.column() + 1):
                         self.model.update_model_from_table(row, col)
                         self.view.update_table_from_model(row, col)
+                        self.view_results.update_result_table()
 
             except Exception as e:
                 print(f"Ошибка при обновлении данных: {e}")
@@ -540,6 +541,19 @@ class TableResultsViewManager:
             width = int(table_width * percent)
             self.table.setColumnWidth(col, width)
 
+    def update_result_table(self):
+        works_sum = sum([work.total for work in self.model.works])
+        materials_sum = sum([work.total_materials for work in self.model.works])
+        total_sum = works_sum + materials_sum
+
+        self.table.setItem(0, 1, QTableWidgetItem(str(round(materials_sum * 0.15, 2))))
+
+        self.table.setItem(1, 1, QTableWidgetItem(str(total_sum)))
+
+        self.table.setItem(2, 1, QTableWidgetItem(str(works_sum)))
+
+        self.table.setItem(3, 1, QTableWidgetItem(str(materials_sum)))
+
 
 class EstimateDataModel:
     def __init__(self, table):
@@ -608,7 +622,7 @@ class EstimateDataModel:
 
             value = item.text()
 
-            if col <= 5:
+            if col <= 5 and row == work_start_row:
                 if col == 1:  # Наименование работы
                     self.works[work_idx].name = value if value else ""
                 elif col == 2:  # Ед. изм.
@@ -631,12 +645,10 @@ class EstimateDataModel:
                     self.works[work_idx].materials[material_idx].quantity = round(float(value), 1) if value else 0.0
 
                     self.update_material_total(work_idx, material_idx)
-                    self.update_work_total_materials(work_idx)
                 elif col == 9:  # Цена материала
                     self.works[work_idx].materials[material_idx].price = round(float(value), 1) if value else 0.0
 
                     self.update_material_total(work_idx, material_idx)
-                    self.update_work_total_materials(work_idx)
         except Exception as e:
             print(f"Ошибка при обновлении модели из таблицы: {e}")
 
@@ -656,7 +668,6 @@ class EstimateDataModel:
         material = self.works[work_idx].materials[material_idx]
         self.works[work_idx].materials[material_idx].total = round(material.quantity * material.price, 1)
 
-    def update_work_total_materials(self, work_idx):
         s = 0.0
         for i in range(len(self.works[work_idx].materials)):
             s += self.works[work_idx].materials[i].total
