@@ -7,7 +7,7 @@ from design.styles import MAIN_WINDOW_STYLE, TAB_STYLE
 class MainWindow(QMainWindow):
     def __init__(self, supabase):
         super().__init__()
-        self.setWindowTitle("Calculating estimate")
+        self.setWindowTitle("Estimate Calculator")
         self.setStyleSheet(MAIN_WINDOW_STYLE)
 
         # Инициализация Supabase
