@@ -614,10 +614,10 @@ class EstimateDataModel:
                 elif col == 2:  # Ед. изм.
                     self.works[work_idx].unit = value if value else ""
                 elif col == 3:  # Количество
-                    self.works[work_idx].quantity = int(value) if value else 0
+                    self.works[work_idx].quantity = round(float(value), 1) if value else 0.0
                     self.update_work_total(work_idx)
                 elif col == 4:  # ФОТ на ед.
-                    self.works[work_idx].labor_cost = float(value) if value else 0
+                    self.works[work_idx].labor_cost = round(float(value), 1) if value else 0.0
                     self.update_work_total(work_idx)
 
             else:
@@ -628,12 +628,12 @@ class EstimateDataModel:
                 elif col == 7:  # Ед. изм. материала
                     self.works[work_idx].materials[material_idx].unit = value if value else ""
                 elif col == 8:  # Количество материала
-                    self.works[work_idx].materials[material_idx].quantity = int(value) if value else 0
+                    self.works[work_idx].materials[material_idx].quantity = round(float(value), 1) if value else 0.0
 
                     self.update_material_total(work_idx, material_idx)
                     self.update_work_total_materials(work_idx)
                 elif col == 9:  # Цена материала
-                    self.works[work_idx].materials[material_idx].price = float(value) if value else 0
+                    self.works[work_idx].materials[material_idx].price = round(float(value), 1) if value else 0.0
 
                     self.update_material_total(work_idx, material_idx)
                     self.update_work_total_materials(work_idx)
@@ -650,18 +650,18 @@ class EstimateDataModel:
         return None, None
 
     def update_work_total(self, work_idx):
-        self.works[work_idx].total = self.works[work_idx].quantity * self.works[work_idx].labor_cost
+        self.works[work_idx].total = round(self.works[work_idx].quantity * self.works[work_idx].labor_cost, 1)
 
     def update_material_total(self, work_idx, material_idx):
         material = self.works[work_idx].materials[material_idx]
-        self.works[work_idx].materials[material_idx].total = material.quantity * material.price
+        self.works[work_idx].materials[material_idx].total = round(material.quantity * material.price, 1)
 
     def update_work_total_materials(self, work_idx):
         s = 0.0
         for i in range(len(self.works[work_idx].materials)):
             s += self.works[work_idx].materials[i].total
 
-        self.works[work_idx].total_materials = s
+        self.works[work_idx].total_materials = round(s, 1)
 
     def total_sum_work_and_materials(self, work_idx):
-        return self.works[work_idx].total_materials + self.works[work_idx].total
+        return round(self.works[work_idx].total_materials + self.works[work_idx].total, 1)

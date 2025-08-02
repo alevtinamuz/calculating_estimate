@@ -1,6 +1,6 @@
 from PyQt6.QtCore import Qt, QPoint, QStringListModel
 from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit, \
-    QListWidget, QListWidgetItem
+    QListWidget, QListWidgetItem, QDoubleSpinBox
 
 import getters
 from design.styles import DROPDOWN_DELEGATE_STYLE, SPIN_BOX_STYLE
@@ -77,9 +77,11 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 return super().createEditor(parent, option, index)
 
         elif index.column() in [3, 8]:  # Ячейки с количеством
-            editor = QSpinBox(parent)
-            editor.setMinimum(0)
-            editor.setMaximum(999999)
+            editor = QDoubleSpinBox(parent)
+            editor.setMinimum(0.0)
+            editor.setMaximum(999999.9)
+            editor.setDecimals(1)
+            editor.setSingleStep(0.1)
 
             editor.setStyleSheet(SPIN_BOX_STYLE)
 
@@ -242,7 +244,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
                     model.setData(unit_index, entity['unit'])
                     
                     quantity_index = model.index(index.row(), 3)
-                    model.setData(quantity_index, 1)
+                    model.setData(quantity_index, 1.0)
 
                 elif index.column() == 6:  # Обработка материала
 
@@ -262,7 +264,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
                         model.setData(unit_index, entity['unit'])
                         
                         quantity_index = model.index(index.row(), 8)
-                        model.setData(quantity_index, 1)
+                        model.setData(quantity_index, 1.0)
 
             except IndexError as ie:
                 print(f"Ошибка индекса при обновлении данных: {ie}")
@@ -272,7 +274,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
         elif index.column() in [3, 8]:  # Для ячеек с количеством
             try:
                 value = editor.value()
-                model.setData(index, value)
+                model.setData(index, float(value))
             except Exception as e:
                 print(f"Не удалось обновить количество: {e}")
 
