@@ -82,7 +82,7 @@ class EstimateTableManager:
             # Если нет работ, добавляем новую
             if not self.model.works:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для добавления "
-                                                                          "материала")
+                                                                            "материала")
                 return
 
             work_idx, work_start_row = self.view.find_selected_work()
@@ -530,15 +530,23 @@ class TableResultsViewManager:
         self.table.setColumnCount(2)
         self.table.setRowCount(4)
 
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setVisible(False)
         self.table.verticalHeader().setVisible(False)
 
-        self.table.setItem(0, 0, QTableWidgetItem("Доставка материала, работа грузчиков, подьем материала, "
-                                                  "тарирование мусора, вынос/вывоз мусора (15% от стоимости "
-                                                  "материалов)"))
-        self.table.setItem(1, 0, QTableWidgetItem("Итого без НДС"))
-        self.table.setItem(2, 0, QTableWidgetItem("В т.ч. ФОТ"))
-        self.table.setItem(3, 0, QTableWidgetItem("В т.ч. Материалы"))
+        headers = [
+            "Доставка материала, работа грузчиков, подъем материала, "
+            "тарирование мусора, вынос/вывоз мусора (15% от стоимости материалов)",
+            "Итого без НДС",
+            "В т.ч. ФОТ",
+            "В т.ч. Материалы"
+        ]
+        
+        for row, text in enumerate(headers):
+            item = QTableWidgetItem(text)
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.table.setItem(row, 0, item)
 
     def adjust_column_widths(self):
         screen_width = self.table.window().screen().availableGeometry().width()

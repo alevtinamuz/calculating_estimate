@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QTableWid
     QPushButton, QMainWindow, QFileDialog, QSizePolicy
 
 import os
-from reportlab.platypus import Image
+from reportlab.platypus import Image, LongTable
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -393,7 +393,7 @@ class PageEstimate(QMainWindow):
                         table_data.append([Paragraph(cell, table_text_style) for cell in row])
 
             # Создаем таблицу
-            table = Table(table_data, colWidths=col_widths, repeatRows=2)
+            table = LongTable(table_data, colWidths=col_widths, repeatRows=2)
 
             # Настройка стиля таблицы
             table_style = [

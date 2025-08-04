@@ -115,6 +115,11 @@ class PageDB(QMainWindow):
                         value = category_names.get(str(value), str(value))
                         item = QTableWidgetItem(str(value))
                         item.setData(Qt.ItemDataRole.UserRole, original_id)  # Сохраняем оригинальный ID
+                        
+                    elif column_name == 'id':
+                        item = QTableWidgetItem(str(row_idx + 1))
+                        item.setData(Qt.ItemDataRole.UserRole + 1, value)
+                        
                     else:
                         item = QTableWidgetItem(str(value))
 
@@ -254,14 +259,15 @@ class PageDB(QMainWindow):
 
                 # Обновляем таблицу
                 self.load_data_from_supabase()
-                QMessageBox.information(self, "Успех", "Данные успешно обновлены!")
+                QMessageBox.information(self, "Успешно", "Данные успешно обновлены!")
 
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось обновить запись: {str(e)}")
 
     def edit_row(self, row):
         """Обработка редактирования строки с формой из нескольких полей"""
-        record_id = self.table_db.item(row, 0).text()
+        id_item = self.table_db.item(row, 0)
+        record_id = id_item.data(Qt.ItemDataRole.UserRole + 1)
 
         # Определяем заголовок и текущие значения
         if self.current_table in ['works', 'materials']:
@@ -366,14 +372,15 @@ class PageDB(QMainWindow):
 
                 # Обновляем таблицу
                 self.load_data_from_supabase()
-                QMessageBox.information(self, "Успех", "Данные успешно обновлены!")
+                QMessageBox.information(self, "Успешно", "Данные успешно обновлены!")
 
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось обновить запись: {str(e)}")
 
     def delete_row(self, row):
         """Обработка удаления строки"""
-        record_id = self.table_db.item(row, 0).text()
+        id_item = self.table_db.item(row, 0)
+        record_id = id_item.data(Qt.ItemDataRole.UserRole + 1)
 
         if self.current_table in ['works', 'materials']:
             reply = QMessageBox.question(
@@ -403,6 +410,7 @@ class PageDB(QMainWindow):
                 elif self.current_table in ['works_categories', 'materials_categories']:
                     self.label.setText(f"Категория с ID {record_id} удалена")
                 self.load_data_from_supabase()
+                QMessageBox.information(self, "Успешно", "Данные успешно обновлены!")
             except Exception as e:
                 self.label.setText(f"Ошибка удаления: {str(e)}")
                 print('Error:', e)
@@ -506,7 +514,7 @@ class PageDB(QMainWindow):
                         json.dump(data, file, ensure_ascii=False, indent=2)
                     
                     progress.setValue(len(selected_groups)*2)
-                    QMessageBox.information(self, "Успех", f"Резервная копия сохранена в:\n{file_path}")
+                    QMessageBox.information(self, "Успешно", f"Резервная копия сохранена в:\n{file_path}")
                     
             except Exception as e:
                 progress.cancel()
@@ -638,7 +646,7 @@ class PageDB(QMainWindow):
                         return
                 
                 progress.setValue(len(selected_groups)*2)
-                QMessageBox.information(self, "Успех", "Данные успешно восстановлены!")
+                QMessageBox.information(self, "Успешно", "Данные успешно восстановлены!")
                 self.load_data_from_supabase()
                 
             except Exception as e:
