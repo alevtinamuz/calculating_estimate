@@ -19,55 +19,9 @@ supabase: Client = create_client(
     os.getenv("SUPABASE_KEY")
 )
 
-# substr = 'клей-пена'
-# getters.get_materials_by_substr(supabase, substr)
-
-# setters.add_work(supabase, 2, "каракуля", 88.88, "шт")
-
 app = QApplication(sys.argv)
 
 window = MainWindow(supabase)
-window.show()  # Хотя showFullScreen() уже вызван в классе
+window.show()
 
 sys.exit(app.exec())
-
-# cat_name = 'Утеплители'
-# getters.get_materials_by_category(supabase, cat_name)
-
-# cat_name = 'Барабашка'
-# getters.get_materials_by_category(supabase, cat_name)
-
-# cat_name = 'Напольные покрытия'
-# getters.get_works_by_category(supabase, cat_name)
-# cat_name = 'Утеплители'
-# getters.get_materials_by_category(supabase, cat_name)
-
-# response = supabase.table('works').select('price').eq('name', 'Покраска фасада в два слоя').execute()
-# print(response.data[0])
-
-# substr = 'утЕплИтеЛь'
-# getters.get_materials_by_substr(supabase, substr)
-#
-# substr = 'Покраска'
-# getters.get_works_by_substr(supabase, substr)
-
-# response = supabase.table('works').select('*').ilike('name', f'%{str}%').execute()
-# print(response.data)
-
-# #
-# str = 'Покраска'
-# response = supabase.table('works').select('*').ilike('name', f'%{str}%').execute()
-
-# response = supabase.table('works').select('*').execute()
-# print(response.data)
-
-# setters.add_work(supabase, 2, "каракуля", 88.88, "шт")
-
-# setters.add_work(supabase, 2, "каракуля", 88.88, "шт")
-
-# setters.delete_work(supabase, 219)
-# setters.add_material_category(supabase, "gg")
-# setters.add_material(supabase, 16, "hh", 11, "mm")
-# setters.add_material(supabase, 16, "gg", 11, "mm")
-# setters.add_material(supabase, 16, "qwqw", 11, "mm")
-# setters.delete_material_category(supabase, 16)
