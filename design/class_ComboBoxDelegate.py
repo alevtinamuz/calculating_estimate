@@ -11,23 +11,28 @@ class DoubleSpinBox(QDoubleSpinBox):
     def __init__(self, parent=None):
         super().__init__(parent)
         # Устанавливаем локаль (например, русскую, чтобы по умолчанию использовалась запятая)
-        self.setLocale(QLocale(QLocale.Language.Russian))  # или QLocale('en') для точки
+        self.setLocale(QLocale("en"))  # или QLocale('en') для точки
+
+        curLocal = QLocale("en")
+
+        print(curLocal.decimalPoint())
     
     def validate(self, text, pos):
         # Разрешаем и точку, и запятую
-        if '.' in text:
-            text = text.replace('.', ',')  # заменяем точку на запятую
-            pos = text.find(',') + 1 if ',' in text else pos
+        if ',' in text:
+            text = text.replace(',', '.')  # заменяем точку на запятую
+            pos = text.find('.') + 1 if '.' in text else pos
         return super().validate(text, pos)
     
     def valueFromText(self, text):
         # Приводим введённый текст к формату с запятой
-        text = text.replace('.', ',')
+        text = text.replace(',', '.')
         return super().valueFromText(text)
     
     def textFromValue(self, value):
         # Форматируем вывод в соответствии с локалью
-        return self.locale().toString(value, 'f', self.decimals())
+        # return self.locale().toString(value, 'f', self.decimals())
+        return f"{value:.{self.decimals()}f}".replace(',', '.')
 
 class ComboBoxDelegate(QStyledItemDelegate):
     def __init__(self, parent, supabase, main_window):
@@ -101,10 +106,12 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
         elif index.column() in [3, 8]:  # Ячейки с количеством
             editor = DoubleSpinBox(parent)
-            editor.setMinimum(0.0)
-            editor.setMaximum(999999.9)
-            editor.setDecimals(1)
-            editor.setSingleStep(0.1)
+            editor.setMinimum(0.00)
+            editor.setMaximum(999999.99)
+            editor.setDecimals(2)
+            editor.setSingleStep(1.00)
+
+            editor.setLocale(QLocale(QLocale.Language.English))
 
             editor.setStyleSheet(SPIN_BOX_STYLE)
 
@@ -298,6 +305,8 @@ class ComboBoxDelegate(QStyledItemDelegate):
             try:
                 value = editor.value()
                 model.setData(index, float(value))
+
+                print(model.data(index))
             except Exception as e:
                 print(f"Не удалось обновить количество: {e}")
 

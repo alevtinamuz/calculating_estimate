@@ -331,7 +331,7 @@ RESULT_TABLE_STYLE = f"""
         color: {BLACK};
         gridline-color: {DARK_GRAY};
         outline: 0;
-        font-size: 14px;
+        font-size: 12px;
         margin-top: 20px
     }}
 
@@ -339,7 +339,9 @@ RESULT_TABLE_STYLE = f"""
         height: 0;
         padding: 0;
         width: 0;
-        border: 1px solid {DARK_GRAY};
+        border-top: 1px solid {DARK_GRAY};
+        border-right: 1px solid {DARK_GRAY};
+        background-color: {WHITE};
     }}
 
     QTableWidget::item {{
@@ -356,6 +358,49 @@ RESULT_TABLE_STYLE = f"""
 
     QTableCornerButton::section {{
         background: {LIGHT_GRAY};
-        border: 2px solid {DARK_GRAY};
+        border: 1px solid {DARK_GRAY};
+    }}
+"""
+
+# Стили для таблицы
+ESTIMATE_TABLE_STYLE = f"""
+    QTableWidget {{
+        background-color: {WHITE};
+        border: none;
+        color: {BLACK};
+        gridline-color: {DARK_GRAY};
+        outline: 0;
+        font-size: 12px;
+        margin-top: 20px
+    }}
+
+    QHeaderView::section {{
+        background-color: {LIGHT_GRAY};
+        padding: 8px;
+        border: 1px solid {DARK_GRAY};
+        border-left: none;
+        color: {BLACK};
+        font-weight: 600;
+        height: 40px;
+    }}
+
+    QTableWidget::item {{
+        padding: 6px;
+        border-right: 1px solid {DARK_GRAY};
+        border-bottom: 1px solid {DARK_GRAY};
+    }}
+
+    QTableWidget::item:selected {{
+        background-color: {ACCENT_BLUE};
+        color: {BLACK};
+        font-weight: bold;
+    }}
+
+    QTableCornerButton::section {{
+        height: 0;
+        padding: 0;
+        width: 0;
+        border: none;
+        background-color: {DARK_GRAY};
     }}
 """

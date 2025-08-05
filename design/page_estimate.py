@@ -68,7 +68,7 @@ class PageEstimate(QMainWindow):
             self.table_manager.view_results.adjust_column_widths()
 
             button_panel = self.create_button_panel()
-            layout.addWidget(button_panel, stretch=2)
+            layout.addWidget(button_panel, stretch=1)
 
             estimate_container.setLayout(layout)
 
