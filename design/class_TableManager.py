@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QMessageBox, QFileDialog, QTableWidgetItem, QTableWi
 
 from design.class_ComboBoxDelegate import ComboBoxDelegate
 from design.classes import MaterialItem, WorkItem
-from design.styles import DATA_TABLE_STYLE
+from design.styles import DATA_TABLE_STYLE, RESULT_TABLE_STYLE
 
 
 class EstimateTableManager:
@@ -511,7 +511,7 @@ class TableResultsViewManager:
 
     def configure_table_appearance(self):
         """Настраивает внешний вид таблицы"""
-        self.table.setStyleSheet(DATA_TABLE_STYLE)
+        self.table.setStyleSheet(RESULT_TABLE_STYLE)
         self.table.setShowGrid(False)
         self.table.setEditTriggers(
             QTableWidget.EditTrigger.DoubleClicked |
