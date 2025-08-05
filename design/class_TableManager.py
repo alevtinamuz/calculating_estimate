@@ -552,7 +552,7 @@ class TableResultsViewManager:
         self.table.setFixedWidth(table_width)
 
         percents_section = {
-            0: 0.865,  # п/п
+            0: 0.908,  # п/п
             1: 0.075,  # Наименование работ
         }
 
