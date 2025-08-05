@@ -322,3 +322,40 @@ QMessageBox QPushButton:pressed {{
     border: 1px solid {ACCENT_BLUE};
 }}
 """
+
+# Стили для таблицы
+RESULT_TABLE_STYLE = f"""
+    QTableWidget {{
+        background-color: {WHITE};
+        border: none;
+        color: {BLACK};
+        gridline-color: {DARK_GRAY};
+        outline: 0;
+        font-size: 14px;
+        margin-top: 20px
+    }}
+
+    QHeaderView::section {{
+        height: 0;
+        padding: 0;
+        width: 0;
+        border: 1px solid {DARK_GRAY};
+    }}
+
+    QTableWidget::item {{
+        padding: 6px;
+        border-right: 1px solid {DARK_GRAY};
+        border-bottom: 1px solid {DARK_GRAY};
+    }}
+
+    QTableWidget::item:selected {{
+        background-color: {ACCENT_BLUE};
+        color: {BLACK};
+        font-weight: bold;
+    }}
+
+    QTableCornerButton::section {{
+        background: {LIGHT_GRAY};
+        border: 2px solid {DARK_GRAY};
+    }}
+"""
