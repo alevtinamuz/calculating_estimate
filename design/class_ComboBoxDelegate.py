@@ -307,7 +307,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 # model.setData(index, float(value))
                 model.setData(index, value, Qt.ItemDataRole.EditRole)
                 # Сохраняем отображаемое значение с точкой
-                model.setData(index, f"{value:.2f}", Qt.ItemDataRole.DisplayRole)
+                model.setData(index, f"{value}", Qt.ItemDataRole.DisplayRole)
 
                 print(model.data(index))
             except Exception as e:
