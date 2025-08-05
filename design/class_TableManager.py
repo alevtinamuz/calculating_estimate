@@ -142,7 +142,6 @@ class EstimateTableManager:
     def delete_selected_material(self):
         """Удаляет выбранный материал"""
         try:
-            print('start delete')
             selected_ranges = self.view.table.selectedRanges()
             if not selected_ranges:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбран ни один материал для удаления")
@@ -194,8 +193,6 @@ class EstimateTableManager:
             self.view.update_table_from_model(work_start_row, 12)
             self.view_results.update_result_table()
 
-            print('end delete')
-
         except Exception as e:
             print(f"Ошибка при удалении материала: {e}")
             raise
@@ -237,7 +234,6 @@ class EstimateTableManager:
                         self.model.update_model_from_table(row, col)
                         self.view.update_table_from_model(row, col)
                         self.view_results.update_result_table()
-                        print("handle_data_change")
 
             except Exception as e:
                 print(f"Ошибка при обновлении данных: {e}")
@@ -258,7 +254,6 @@ class TableViewManager:
         """Настройка таблицы"""
         self.configure_table_appearance()
         self.setup_headers()
-        # self.adjust_column_widths()
 
     def configure_table_appearance(self):
         """Настраивает внешний вид таблицы"""
@@ -293,7 +288,7 @@ class TableViewManager:
         # Наименование работы (редактируемое)
         item = QTableWidgetItem("")
         item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
-        # item.setData(Qt.ItemDataRole.UserRole, "work_name")
+        item.setData(Qt.ItemDataRole.UserRole, "work_name")
         self.table.setItem(row, 1, item)
 
         # Остальные ячейки работы
@@ -473,7 +468,7 @@ class TableViewManager:
     def adjust_column_widths(self):
         screen_width = self.table.parent().window().screen().availableGeometry().width()
 
-        table_width = screen_width - 30
+        table_width = screen_width - 50
 
         # Устанавливаем фиксированную ширину таблицы
         self.table.setFixedWidth(table_width)
@@ -482,12 +477,12 @@ class TableViewManager:
             0: 0.035,  # п/п
             1: 0.14,  # Наименование работ
             2: 0.04,  # Ед. изм
-            3: 0.05,  # К-во
+            3: 0.07,  # К-во
             4: 0.075,  # ФОТ на ед
             5: 0.075,  # ФОТ всего
             6: 0.14,  # Материалы
             7: 0.04,  # Ед. изм
-            8: 0.05,  # К-во
+            8: 0.07,  # К-во
             9: 0.075,  # Цена
             10: 0.075,  # Сумма
             11: 0.075,  # Сумма по материалам
@@ -551,7 +546,7 @@ class TableResultsViewManager:
     def adjust_column_widths(self):
         screen_width = self.table.window().screen().availableGeometry().width()
 
-        table_width = screen_width - 30
+        table_width = screen_width - 50
 
         # Устанавливаем фиксированную ширину таблицы
         self.table.setFixedWidth(table_width)
