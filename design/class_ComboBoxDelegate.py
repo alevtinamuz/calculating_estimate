@@ -303,8 +303,11 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
         elif index.column() in [3, 8]:  # Для ячеек с количеством
             try:
-                value = editor.value()
-                model.setData(index, float(value))
+                value = editor.text()
+                # model.setData(index, float(value))
+                model.setData(index, value, Qt.ItemDataRole.EditRole)
+                # Сохраняем отображаемое значение с точкой
+                model.setData(index, f"{value:.2f}", Qt.ItemDataRole.DisplayRole)
 
                 print(model.data(index))
             except Exception as e:
