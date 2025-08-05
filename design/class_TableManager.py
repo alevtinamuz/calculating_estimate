@@ -1,11 +1,11 @@
 from PyQt6.QtCore import Qt, QPoint, QRectF, QMarginsF
-from PyQt6.QtGui import QFont, QPainter, QPageLayout
+from PyQt6.QtGui import QFont, QPainter, QPageLayout, QTextOption
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtWidgets import QMessageBox, QFileDialog, QTableWidgetItem, QTableWidget, QHeaderView
 
 from design.class_ComboBoxDelegate import ComboBoxDelegate
 from design.classes import MaterialItem, WorkItem
-from design.styles import DATA_TABLE_STYLE, RESULT_TABLE_STYLE
+from design.styles import DATA_TABLE_STYLE, RESULT_TABLE_STYLE, ESTIMATE_TABLE_STYLE
 
 
 class EstimateTableManager:
@@ -234,6 +234,7 @@ class EstimateTableManager:
                         self.model.update_model_from_table(row, col)
                         self.view.update_table_from_model(row, col)
                         self.view_results.update_result_table()
+                        self.table.resizeRowToContents(row)
 
             except Exception as e:
                 print(f"Ошибка при обновлении данных: {e}")
@@ -257,7 +258,7 @@ class TableViewManager:
 
     def configure_table_appearance(self):
         """Настраивает внешний вид таблицы"""
-        self.table.setStyleSheet(DATA_TABLE_STYLE)
+        self.table.setStyleSheet(ESTIMATE_TABLE_STYLE)
         self.table.setShowGrid(False)
         self.table.setEditTriggers(
             QTableWidget.EditTrigger.DoubleClicked |
@@ -265,6 +266,8 @@ class TableViewManager:
         )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+
+        self.table.setWordWrap(True)
 
     def setup_headers(self):
         """Устанавливает заголовки таблицы"""
@@ -275,7 +278,20 @@ class TableViewManager:
         ]
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
-        self.table.verticalHeader().setVisible(False)
+        # self.table.horizontalHeader().setVisible(False)
+
+        self.table.verticalHeader().setStyleSheet("""
+            QHeaderView::section {
+                height: 0;
+                padding: 0;
+                width: 0;
+                border-right: 1px solid #E5E5E5;
+                background-color: #FFFFFF;
+            }
+        """)
+
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap)
 
     def fill_work_row(self, row, number):
         """Заполняет строку работы"""
@@ -526,8 +542,6 @@ class TableResultsViewManager:
         self.table.setRowCount(4)
 
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.horizontalHeader().setVisible(False)
-        self.table.verticalHeader().setVisible(False)
 
         headers = [
             "Доставка материала, работа грузчиков, подъем материала, "
@@ -658,10 +672,10 @@ class EstimateDataModel:
                 elif col == 2:  # Ед. изм.
                     self.works[work_idx].unit = value if value else ""
                 elif col == 3:  # Количество
-                    self.works[work_idx].quantity = round(float(value), 1) if value else 0.0
+                    self.works[work_idx].quantity = round(float(value), 2) if value else 0.00
                     self.update_work_total(work_idx)
                 elif col == 4:  # ФОТ на ед.
-                    self.works[work_idx].labor_cost = round(float(value), 1) if value else 0.0
+                    self.works[work_idx].labor_cost = round(float(value), 2) if value else 0.00
                     self.update_work_total(work_idx)
 
             else:
@@ -672,12 +686,12 @@ class EstimateDataModel:
                 elif col == 7:  # Ед. изм. материала
                     self.works[work_idx].materials[material_idx].unit = value if value else ""
                 elif col == 8:  # Количество материала
-                    self.works[work_idx].materials[material_idx].quantity = round(float(value), 1) if value else 0.0
+                    self.works[work_idx].materials[material_idx].quantity = round(float(value), 2) if value else 0.00
 
                     self.update_material_total(work_idx, material_idx)
                     self.update_total_materials(work_idx)
                 elif col == 9:  # Цена материала
-                    self.works[work_idx].materials[material_idx].price = round(float(value), 1) if value else 0.0
+                    self.works[work_idx].materials[material_idx].price = round(float(value), 2) if value else 0.00
 
                     self.update_material_total(work_idx, material_idx)
                     self.update_total_materials(work_idx)
@@ -694,18 +708,18 @@ class EstimateDataModel:
         return None, None
 
     def update_work_total(self, work_idx):
-        self.works[work_idx].total = round(self.works[work_idx].quantity * self.works[work_idx].labor_cost, 1)
+        self.works[work_idx].total = round(self.works[work_idx].quantity * self.works[work_idx].labor_cost, 2)
 
     def update_material_total(self, work_idx, material_idx):
         material = self.works[work_idx].materials[material_idx]
-        self.works[work_idx].materials[material_idx].total = round(material.quantity * material.price, 1)
+        self.works[work_idx].materials[material_idx].total = round(material.quantity * material.price, 2)
 
     def update_total_materials(self, work_idx):
         s = 0.0
         for i in range(len(self.works[work_idx].materials)):
             s += self.works[work_idx].materials[i].total
 
-        self.works[work_idx].total_materials = round(s, 1)
+        self.works[work_idx].total_materials = round(s, 2)
 
     def total_sum_work_and_materials(self, work_idx):
-        return round(self.works[work_idx].total_materials + self.works[work_idx].total, 1)
+        return round(self.works[work_idx].total_materials + self.works[work_idx].total, 2)
