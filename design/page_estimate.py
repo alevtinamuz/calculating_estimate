@@ -289,6 +289,7 @@ class PageEstimate(QMainWindow):
 
 
             data = [headers, fot_labels]
+            data_summary = []
 
             # Ширины столбцов
             col_widths = [
@@ -345,23 +346,33 @@ class PageEstimate(QMainWindow):
             materials_sum = sum([work.total_materials for work in self.table_manager.model.works])
             summary_sum = works_sum + materials_sum
             
-            summary_rows = [
-                ["Доставка материала, работа грузчиков, подъем материала, тарирование мусора, вынос/вывоз мусора (15% от стоимости материалов):"] +
-                [""] * 10 +
-                [self.safe_format_float(materials_sum * 0.15, "0.0")],
-
-                ["Сметный расчёт"] + [""] * (len(headers) - 1),
-
-                ["Итого без НДС:"] + [""] * 10 + [self.safe_format_float(summary_sum, "0.0")],
-
-                ["В т.ч. ФОТ:"] + [""] * 10 + [self.safe_format_float(works_sum, "0.0")],
-
-                ["В т.ч. Материалы:"] + [""] * 10 + [self.safe_format_float(materials_sum, "0.0")]
+            summary_data = [
+                [
+                    Paragraph("Доставка материала, работа грузчиков, подъем материала, тарирование мусора, вынос/вывоз мусора (15% от стоимости материалов):", summary_text_style),
+                    *[Paragraph("", table_text_style) for _ in range(10)],
+                    Paragraph(self.safe_format_float(materials_sum * 0.15, "0.0"), summary_value_style)
+                ],
+                [
+                    Paragraph("Сметный расчёт", summary_title_style),
+                    *[Paragraph("", table_text_style) for _ in range(11)]
+                ],
+                [
+                    Paragraph("Итого без НДС:", summary_text_style),
+                    *[Paragraph("", table_text_style) for _ in range(10)],
+                    Paragraph(self.safe_format_float(summary_sum, "0.0"), summary_value_style)
+                ],
+                [
+                    Paragraph("В т.ч. ФОТ:", summary_text_style),
+                    *[Paragraph("", table_text_style) for _ in range(10)],
+                    Paragraph(self.safe_format_float(works_sum, "0.0"), summary_value_style)
+                ],
+                [
+                    Paragraph("В т.ч. Материалы:", summary_text_style),
+                    *[Paragraph("", table_text_style) for _ in range(10)],
+                    Paragraph(self.safe_format_float(materials_sum, "0.0"), summary_value_style)
+                ]
             ]
-            
-            data.extend(summary_rows)
 
-            summary_start_index = len(data) - len(summary_rows)
 
             # Преобразуем данные в Paragraph
             table_data = []
@@ -371,29 +382,13 @@ class PageEstimate(QMainWindow):
                 elif i == 1:
                     table_data.append([Paragraph(str(label), table_header_style) for label in fot_labels])
                 else:
-                    if i >= summary_start_index:
-                        if i == summary_start_index:
-                            table_data.append([
-                                Paragraph(row[0], summary_text_style),
-                                *[Paragraph("", table_text_style) for _ in range(10)],
-                                Paragraph(row[-1], summary_value_style)
-                            ])
-                        elif i == summary_start_index + 1:
-                            table_data.append([
-                                Paragraph(row[0], summary_title_style),
-                                *[Paragraph("", table_text_style) for _ in range(11)]
-                            ])
-                        else:
-                            table_data.append([
-                                Paragraph(row[0], summary_text_style),
-                                *[Paragraph("", table_text_style) for _ in range(10)],
-                                Paragraph(row[-1], summary_value_style)
-                            ])
-                    else:
-                        table_data.append([Paragraph(cell, table_text_style) for cell in row])
+                    table_data.append([Paragraph(cell, table_text_style) for cell in row])
+                    
+            
 
             # Создаем таблицу
             table = LongTable(table_data, colWidths=col_widths, repeatRows=2)
+            table_summary = LongTable(summary_data, colWidths=col_widths)
 
             # Настройка стиля таблицы
             table_style = [
@@ -441,30 +436,32 @@ class PageEstimate(QMainWindow):
                     for col in [0, 1, 2, 3, 4, 5, 10, 11]: 
                         table_style.append(('SPAN', (col, start_row), (col, end_row)))
                         
-            summary_start = len(data) - len(summary_rows)
-
-            table_style.extend([
-                ('SPAN', (0, summary_start), (10, summary_start)),
-
-                ('SPAN', (0, summary_start + 1), (11, summary_start + 1)),
-                ('ALIGN', (0, summary_start + 1), (0, summary_start + 1), 'CENTER'),
-                ('BACKGROUND', (0, summary_start + 1), (11, summary_start + 1), colors.lightgrey),
-                ('TEXTCOLOR', (0, summary_start + 1), (11, summary_start + 1), colors.black),
-
-                ('SPAN', (0, summary_start + 2), (10, summary_start + 2)),
-                ('SPAN', (0, summary_start + 3), (10, summary_start + 3)),
-                ('SPAN', (0, summary_start + 4), (10, summary_start + 4)),
-
-                ('FONTNAME', (0, summary_start), (11, summary_start + 4), 'Arial-Bold'),
-            ])
-
+            summary_style = [
+                ('SPAN', (0, 0), (10, 0)),
+                ('SPAN', (0, 1), (11, 1)),
+                ('ALIGN', (0, 1), (0, 1), 'CENTER'),
+                ('BACKGROUND', (0, 1), (11, 1), colors.lightgrey),
+                ('TEXTCOLOR', (0, 1), (11, 1), colors.black),
+                ('SPAN', (0, 2), (10, 2)),
+                ('SPAN', (0, 3), (10, 3)),
+                ('SPAN', (0, 4), (10, 4)),
+                ('FONTNAME', (0, 0), (11, -1), 'Arial-Bold'),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                ('ALIGN', (4, 0), (-1, -1), 'RIGHT'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
+            ]
+            
             table.setStyle(TableStyle(table_style))
+            table_summary.setStyle(TableStyle(summary_style))
             elements.append(table)
             elements.append(Spacer(1, 10*mm))
+            elements.append(table_summary)
 
             # Генерация PDF
             doc.build(elements)
-            QMessageBox.information(self, "Успех", f"PDF успешно сохранен:\n{file_path}")
+            QMessageBox.information(self, "Успешно", f"PDF успешно сохранен:\n{file_path}")
 
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Ошибка при сохранении PDF:\n{str(e)}")
