@@ -217,6 +217,19 @@ class PageDB(QMainWindow):
                 category_combo_material.setCurrentText(current_category)
                 form_layout.addRow("Категория материала:", category_combo_material)
 
+            keywords_inputs = [QLineEdit()]
+            form_layout.addRow("Ключевые слова:", keywords_inputs[-1])
+
+            def add_keyword():
+                keywords_inputs.append(QLineEdit())
+                keywords_inputs[-1].setText("")
+                form_layout.insertRow(form_layout.rowCount() - 1, "", keywords_inputs[-1])
+
+            add_keyword_btn = QPushButton("Добавить ключевое слово")
+            add_keyword_btn.clicked.connect(lambda: add_keyword())
+
+            form_layout.addWidget(add_keyword_btn)
+
         main_layout.addLayout(form_layout)
 
         # Кнопки (Save/Cancel)
@@ -244,14 +257,15 @@ class PageDB(QMainWindow):
                 if self.current_table in ['works', 'materials']:
                     new_price = price_input.value()
                     new_unit = unit_input.text()
+                    new_keywords = "!".join(inp.text() for inp in keywords_inputs)
 
                 # Обновляем данные в Supabase
                 if self.current_table == 'works':
                     new_category_work = category_combo_work.currentData()
-                    setters.add_work(self.supabase, new_category_work, new_name, new_price, new_unit)
+                    setters.add_work(self.supabase, new_category_work, new_name, new_price, new_unit, new_keywords)
                 elif self.current_table == 'materials':
                     new_category_material = category_combo_material.currentData()
-                    setters.add_material(self.supabase, new_category_material, new_name, new_price, new_unit)
+                    setters.add_material(self.supabase, new_category_material, new_name, new_price, new_unit, new_keywords)
                 elif self.current_table == 'works_categories':
                     setters.add_work_category(self.supabase, new_name)
                 elif self.current_table == 'materials_categories':
@@ -269,6 +283,8 @@ class PageDB(QMainWindow):
         id_item = self.table_db.item(row, 0)
         record_id = id_item.data(Qt.ItemDataRole.UserRole + 1)
 
+        entity = getters.get_entity_by_id(self.supabase, self.current_table, record_id)[0]
+
         # Определяем заголовок и текущие значения
         if self.current_table in ['works', 'materials']:
             title = "Редактирование записи"
@@ -277,6 +293,10 @@ class PageDB(QMainWindow):
             current_unit = self.table_db.item(row, 4).text()
             # Получаем оригинальный ID категории из UserRole
             current_category = self.table_db.item(row, 1).data(Qt.ItemDataRole.UserRole)
+
+            current_keywords = entity["keywords"].split("!")
+            keywords_inputs = []
+
         elif self.current_table in ['works_categories', 'materials_categories']:
             title = "Редактирование категории"
             current_name = self.table_db.item(row, 1).text()  # Название категории
@@ -307,6 +327,7 @@ class PageDB(QMainWindow):
             unit_input = QLineEdit()
             unit_input.setText(current_unit)
             form_layout.addRow("Ед. изм.:", unit_input)
+
             if self.current_table == 'works':
                 category_combo_work = QComboBox()
                 categories_work = getters.get_all_table(self.supabase, 'works_categories')
@@ -323,6 +344,21 @@ class PageDB(QMainWindow):
                 current_category_name_material = getters.get_entity_by_id(self.supabase, 'materials_categories', current_category)
                 category_combo_material.setCurrentText(current_category_name_material[0]['name'])
                 form_layout.addRow("Категория работ:", category_combo_material)
+
+            for i in range(len(current_keywords)):
+                keywords_inputs.append(QLineEdit(current_keywords[i]))
+                label = "Ключевые слова:" if i == 0 else ""
+                form_layout.addRow(label, keywords_inputs[-1])
+
+        def add_keyword():
+            keywords_inputs.append(QLineEdit())
+            keywords_inputs[-1].setText("")
+            form_layout.insertRow(form_layout.rowCount() - 1, "", keywords_inputs[-1])
+
+        add_keyword_btn = QPushButton("Добавить ключевое слово")
+        add_keyword_btn.clicked.connect(lambda: add_keyword())
+
+        form_layout.addWidget(add_keyword_btn)
 
         main_layout.addLayout(form_layout)
 
@@ -351,6 +387,7 @@ class PageDB(QMainWindow):
                 if self.current_table in ['works', 'materials']:
                     new_price = price_input.value()
                     new_unit = unit_input.text()
+                    new_keywords = "!".join(inp.text() for inp in keywords_inputs)
 
                 # Обновляем данные в Supabase
                 if self.current_table == 'works':
@@ -359,12 +396,14 @@ class PageDB(QMainWindow):
                     setters.update_price_of_work(self.supabase, record_id, new_price)
                     setters.update_unit_of_works(self.supabase, record_id, new_unit)
                     setters.update_category_id_of_work(self.supabase, record_id, new_category_work)
+                    setters.update_keywords_of_work(self.supabase, record_id, new_keywords)
                 elif self.current_table == 'materials':
                     new_category_material = category_combo_material.currentData()
                     setters.update_name_of_materials(self.supabase, record_id, new_name)
                     setters.update_price_of_material(self.supabase, record_id, new_price)
                     setters.update_unit_of_materials(self.supabase, record_id, new_unit)
                     setters.update_category_id_of_material(self.supabase, record_id, new_category_material)
+                    setters.update_keywords_of_materials(self.supabase, record_id, new_keywords)
                 elif self.current_table == 'works_categories':
                     setters.update_name_work_category(self.supabase, record_id, new_name)
                 elif self.current_table == 'materials_categories':
@@ -804,7 +843,8 @@ class PageDB(QMainWindow):
             "works": "Работы",
             "works_categories": "Категории работ",
             "materials": "Материалы",
-            "materials_categories": "Категории материалов"
+            "materials_categories": "Категории материалов",
+            "sections": "Разделы"
         }
         # Создаем выпадающий список для выбора таблицы
         table_selector = QComboBox()

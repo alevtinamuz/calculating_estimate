@@ -91,27 +91,45 @@ def update_unit_of_works(supabase, id, new_unit):
     .eq("id", id)
     .execute()
   )
+
+def update_keywords_of_work(supabase, id, new_keywords):
+  response = (
+    supabase.table("works")
+    .update({"keywords": new_keywords})
+    .eq("id", id)
+    .execute()
+  )
+
+def update_keywords_of_materials(supabase, id, new_keywords):
+  response = (
+    supabase.table("materials")
+    .update({"keywords": new_keywords})
+    .eq("id", id)
+    .execute()
+  )
   
-def add_material(supabase, category_id, name, price, unit):
+def add_material(supabase, category_id, name, price, unit, keywords):
   response = (
     supabase.table("materials")
     .insert({
             "category_id": category_id,
             "name": name,
             "price": price,
-            "unit": unit
+            "unit": unit,
+            'keywords': keywords
             })
     .execute()
   )
   
-def add_work(supabase, category_id, name, price, unit):
+def add_work(supabase, category_id, name, price, unit, keywords):
   response = (
     supabase.table("works")
     .insert({
             "category_id": category_id,
             "name": name,
             "price": price,
-            "unit": unit
+            "unit": unit,
+            'keywords': keywords
             })
     .execute()
   )
@@ -156,22 +174,24 @@ def clear_table(supabase, name_of_table: str):
     .execute()
   )
   
-def upsert_work(supabase, category_id, name, price, unit):
+def upsert_work(supabase, category_id, name, price, unit, keywords):
     """Обновляет или создает работу (без указания ID)"""
     supabase.table('works').upsert({
         'category_id': category_id,
         'name': name,
         'price': price,
-        'unit': unit
+        'unit': unit,
+        'keywords': keywords
     }).execute()
 
-def upsert_material(supabase, category_id, name, price, unit):
+def upsert_material(supabase, category_id, name, price, unit, keywords):
     """Обновляет или создает материал (без указания ID)"""
     supabase.table('materials').upsert({
         'category_id': category_id,
         'name': name,
         'price': price,
-        'unit': unit
+        'unit': unit,
+        'keywords': keywords
     }).execute()
 
 def upsert_work_category(supabase, name):
@@ -192,7 +212,8 @@ def batch_insert_works_fast(supabase, items):
         'category_id': item['category_id'],
         'name': item['name'],
         'price': item['price'],
-        'unit': item['unit']
+        'unit': item['unit'],
+        'keywords': item['keywords']
     } for item in items]
     supabase.table('works').insert(data, returning='minimal').execute()
 
@@ -202,7 +223,8 @@ def batch_insert_materials_fast(supabase, items):
         'category_id': item['category_id'],
         'name': item['name'],
         'price': item['price'],
-        'unit': item['unit']
+        'unit': item['unit'],
+        'keywords': item['keywords']
     } for item in items]
     supabase.table('materials').insert(data, returning='minimal').execute()
 
