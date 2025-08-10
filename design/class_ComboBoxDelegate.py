@@ -45,6 +45,11 @@ class ComboBoxDelegate(QStyledItemDelegate):
         self.main_window = main_window
         self.search_line_edit = None
         self.last_selected_id = None
+        
+    def commitAndClose(self, editor):
+        """Сохраняет данные и закрывает редактор"""
+        self.commitData.emit(editor)
+        self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.SubmitModelCache)
 
     def createEditor(self, parent, option, index):
         self.current_row = index.row()
@@ -97,6 +102,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
                     self.set_current_value(current_value)
 
                 self.current_editor = editor
+                
+                self.sub_list.itemDoubleClicked.connect(
+                    lambda: self.commitAndClose(editor)  # Новый метод
+                )
 
                 return editor
 
