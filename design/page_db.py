@@ -72,13 +72,14 @@ class PageDB(QMainWindow):
                 }
             else:
                 data = getters.sort_by_id(self.supabase, self.current_table, 'category_id') 
-                column_order = ['id', 'category_id', 'name', 'price', 'unit']
+                column_order = ['id', 'category_id', 'name', 'price', 'unit', 'keywords']
                 header_names = {
                     'id': '№',
                     'category_id': 'Категория',
                     'name': 'Название',
                     'price': 'Цена',
-                    'unit': 'Ед. изм.'
+                    'unit': 'Ед. изм.',
+                    'keywords': "keywords"
                 }
 
             if not data:
@@ -143,6 +144,7 @@ class PageDB(QMainWindow):
             self.adjust_column_widths()
 
             # Показываем таблицу
+            self.table_db.setColumnHidden(5, True)
             self.label.setVisible(False)
             self.table_db.setVisible(True)
             # self.label.setText("Данные успешно загружены")
@@ -763,6 +765,7 @@ class PageDB(QMainWindow):
     def perform_search(self):
         CATEGORY_COLUMN = 1
         NAME_COLUMN = 2
+        KEYWORDS_COLUMN = 5
         
         search_text = self.search_input.text().strip().lower()
         search_words = search_text.split()
@@ -775,6 +778,7 @@ class PageDB(QMainWindow):
         for row in range(self.table_db.rowCount()):
             category_text = ""
             name_text = ""
+            keywords_text = ""
             
             category_item = self.table_db.item(row, CATEGORY_COLUMN)
             if category_item:
@@ -783,9 +787,13 @@ class PageDB(QMainWindow):
             name_item = self.table_db.item(row, NAME_COLUMN)
             if name_item:
                 name_text = name_item.text().lower()
+                
+            keywords_item = self.table_db.item(row, KEYWORDS_COLUMN)
+            if keywords_item:
+                keywords_text = keywords_item.text().lower()
             
             # Объединяем текст из обеих колонок для поиска
-            combined_text = f"{category_text} {name_text}"
+            combined_text = f"{category_text} {name_text} {keywords_text}"
             
             # Проверяем, что все слова поиска присутствуют в объединенном тексте
             match_found = all(word in combined_text for word in search_words)
