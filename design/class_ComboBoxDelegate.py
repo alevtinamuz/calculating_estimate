@@ -149,8 +149,16 @@ class ComboBoxDelegate(QStyledItemDelegate):
         if not hasattr(self, 'sub_list') or not self.sub_list.count():
             return
 
-        if text:
-            self.update_sub_list(text)
+        search_text = ""
+        if isinstance(text, str):
+            search_text = text
+        elif isinstance(text, QListWidgetItem):
+            search_text = text.text()
+        print({search_text})
+        # Вызываем обновление только если есть текст для поиска
+        
+        if search_text:
+            self.update_sub_list(search_text)
 
     def updateEditorGeometry(self, editor, option, index):
         """Позиционирование редактора с учетом границ экрана"""
@@ -193,19 +201,31 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
     def load_initial_data(self, column):
         """Загрузка начальных данных в комбобоксы"""
-        entity_type = "works" if column == 1 else "materials"
+        category_type = "works" if column == 1 else "materials"
         try:
-            categories = self.supabase.table(f"{entity_type}_categories").select('*').execute().data
+            categories = self.supabase.table(f"{category_type}_categories").select('*').execute().data
+            self.data = self.supabase.table(f"{category_type}").select('*').execute().data
             self.main_list.clear()
+            self.sub_list.clear()
             all_categories_item = QListWidgetItem("Все категории")
             all_categories_item.setData(Qt.ItemDataRole.UserRole, 0)
             self.main_list.addItem(all_categories_item)
+            empty_el = QListWidgetItem("-")
+            empty_el.setData(Qt.ItemDataRole.UserRole, 0)  # Используем 0 как специальный ID
+            empty_el.setData(Qt.ItemDataRole.UserRole + 1, True)  # Флаг "всегда видимый"
+            self.sub_list.addItem(empty_el)
 
             for cat in categories:
                 item = QListWidgetItem(cat['name'])
                 item.setData(Qt.ItemDataRole.UserRole, cat['id'])  # Сохраняем id в UserRole
                 self.main_list.addItem(item)
-
+                
+            for item in self.data:
+                entity = QListWidgetItem(item['name'])
+                entity.setData(Qt.ItemDataRole.UserRole, item['id'])
+                self.sub_list.addItem(entity)
+                
+            
             self.main_list.setCurrentRow(0)
 
             # Загружаем подчиненные элементы
@@ -218,37 +238,38 @@ class ComboBoxDelegate(QStyledItemDelegate):
         """Обновление подчиненного комбобокса"""
         if hasattr(self, 'main_list') and self.main_list.count() > 0:
             cat_item = self.main_list.currentItem()
-            # Получаем текст (аналог .currentText() в QComboBox)
-            cat_text = cat_item.text()
             # Получаем сохранённый id (аналог .currentData() в QComboBox)
             cat_id = cat_item.data(Qt.ItemDataRole.UserRole)
 
-            entity_type = "works" if self.current_col == 1 else "materials"
-            items = []
+            text = text if isinstance(text, str) else ""
 
             try:
-                if text:
-                    items = getters.get_entity_by_substr(self.supabase, entity_type, text, cat_id)
-                if not items:
-                    if cat_id:
-                        items = self.supabase.table(entity_type) \
-                            .select('*') \
-                            .eq('category_id', cat_id) \
-                            .execute().data
-                    else:
-                        items = self.supabase.table(entity_type) \
-                            .select('*') \
-                            .execute().data
-
-                self.sub_list.clear()
-                empty_el = QListWidgetItem("-")
-                empty_el.setData(Qt.ItemDataRole.UserRole, 0)
-                self.sub_list.addItem(empty_el)
-
-                for item in items:
-                    el = QListWidgetItem(item['name'])
-                    el.setData(Qt.ItemDataRole.UserRole, item['id'])  # Сохраняем id в UserRole
-                    self.sub_list.addItem(el)
+                for i in range(self.sub_list.count()):
+                    self.sub_list.item(i).setHidden(False)
+                    
+                for i in range(self.sub_list.count()):
+                    item = self.sub_list.item(i)
+                    item_data = item.data(Qt.ItemDataRole.UserRole)
+                    
+                    if not item_data:
+                        continue
+                    
+                    entity_data = next((x for x in getattr(self, 'data', []) if x['id'] == item_data), None)
+                    
+                    if not entity_data:
+                        print ({entity_data})
+                        continue
+                
+                    if cat_id and entity_data.get('category_id') != cat_id:
+                        item.setHidden(True)
+                        continue
+                        
+                    # Фильтр по тексту
+                    if text:
+                        name_match = text in entity_data['name'].lower()
+                        keywords_match = text in entity_data.get('keywords', '').lower()
+                        if not name_match and not keywords_match:
+                            item.setHidden(True)
 
             except Exception as e:
                 print(f"Sub-combo update error: {e}")
