@@ -14,6 +14,14 @@ def update_name_work_category(supabase, id, new_name):
     .execute()
   )
   
+def update_name_section(supabase, id, new_name):
+  response = (
+    supabase.table("sections")
+    .update({"name": new_name})
+    .eq("id", id)
+    .execute()
+  )
+  
 def add_material_category(supabase, name):
   response = (
     supabase.table("materials_categories")
@@ -24,6 +32,13 @@ def add_material_category(supabase, name):
 def add_work_category(supabase, name):
   response = (
     supabase.table("works_categories")
+    .insert({"name": name})
+    .execute()
+  )
+  
+def add_section(supabase, name):
+  response = (
+    supabase.table("sections")
     .insert({"name": name})
     .execute()
   )
@@ -145,6 +160,14 @@ def delete_material_category(supabase, id):
 def delete_work_category(supabase, id):
   response = (
     supabase.table("works_categories")
+    .delete()
+    .eq("id", id)
+    .execute()
+  )
+  
+def delete_section(supabase, id):
+  response = (
+    supabase.table("sections")
     .delete()
     .eq("id", id)
     .execute()
