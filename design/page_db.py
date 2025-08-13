@@ -330,8 +330,6 @@ class PageDB(QMainWindow):
         # Создаем форму с полями
         form_layout = QFormLayout()
         
-        keyword_layout = QHBoxLayout()
-
         # Поле "Название"
         name_input = QLineEdit()
         name_input.setText(current_name)
@@ -365,24 +363,17 @@ class PageDB(QMainWindow):
                 category_combo_material.setCurrentText(current_category_name_material[0]['name'])
                 form_layout.addRow("Категория работ:", category_combo_material)
 
-            for i in range(len(current_keywords)):
-                keywords_inputs.append(QLineEdit(current_keywords[i]))
-                label = "Ключевые слова:" if i == 0 else ""
-                keyword_layout.addWidget(keywords_inputs[-1])
-                keyword_layout.addWidget(QPushButton("f"))
-                form_layout.addRow(label, keyword_layout)
+            keyword_layout = QVBoxLayout()
 
-            def add_keyword():
-                keywords_inputs.append(QLineEdit())
-                keywords_inputs[-1].setText("")
-                keyword_layout.addWidget(keywords_inputs[-1])
-                keyword_layout.addWidget(QPushButton("f"))
-                form_layout.insertRow(form_layout.rowCount() - 1, "", keyword_layout)
+            for keyword in current_keywords:
+                self.add_keyword_row(keywords_inputs, keyword_layout, keyword)
+                
+            form_layout.addRow("Ключевые слова:", keyword_layout)
 
             add_keyword_btn = QPushButton("Добавить ключевое слово")
-            add_keyword_btn.clicked.connect(lambda: add_keyword())
+            add_keyword_btn.clicked.connect(lambda: self.add_keyword_row(keywords_inputs, keyword_layout))
 
-            form_layout.addWidget(add_keyword_btn)
+            form_layout.addRow("", add_keyword_btn)
 
         main_layout.addLayout(form_layout)
 
@@ -441,6 +432,52 @@ class PageDB(QMainWindow):
 
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось обновить запись: {str(e)}")
+
+    def add_keyword_row(self, keywords_inputs, keyword_layout, keyword=""):
+        row_layout = QHBoxLayout()
+        keyword_input = QLineEdit(keyword)
+        keywords_inputs.append(keyword_input)
+        row_layout.addWidget(keyword_input)
+        
+        delete_btn = QPushButton("🗑️")
+        delete_btn.setFixedWidth(30)
+        delete_btn.clicked.connect(lambda: self.remove_keyword_row(
+            keywords_inputs=keywords_inputs,
+            keyword_input=keyword_input,
+            row_layout=row_layout,
+            keyword_layout=keyword_layout
+        ))
+        row_layout.addWidget(delete_btn)
+        
+        keyword_layout.addLayout(row_layout)
+        
+    def remove_keyword_row(self, keywords_inputs, keyword_input, row_layout, keyword_layout):
+        try:
+            # Удаляем поле ввода из списка (если оно там есть)
+            if keyword_input in keywords_inputs:
+                keywords_inputs.remove(keyword_input)
+            
+            # Очищаем layout строки
+            self.clear_layout(row_layout)
+            
+            # Удаляем строку из контейнера
+            keyword_layout.removeItem(row_layout)
+            
+            # Обновляем отображение
+            if keyword_layout.parentWidget():
+                keyword_layout.parentWidget().update()
+                
+        except Exception as e:
+            print(f"Ошибка при удалении строки: {e}")
+
+    def clear_layout(self, layout):
+        """Очищает layout и удаляет все его виджеты"""
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                self._clear_layout(item.layout())
 
     def delete_row(self, row):
         """Обработка удаления строки"""
