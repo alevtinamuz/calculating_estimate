@@ -71,11 +71,38 @@ class PageDB(QMainWindow):
                     'name': 'Название категории'
                 }
             elif self.current_table in ['sections']:
-                data = getters.sort_by_id(self.supabase, self.current_table, 'id')
-                column_order = ['id', 'name']
+                data_sections = getters.sort_by_id(self.supabase, self.current_table, 'id')
+                data_relations = getters.sort_by_id(self.supabase, 'section_work_category_relations', 'section_id')
+                work_categories = getters.get_all_table(self.supabase, 'works_categories')
+                
+                # Создаем список для отображения
+                display_data = []
+                
+                for section in data_sections:
+                    related_category_ids = [
+                        related['category_id'] for related in data_relations 
+                        if related['section_id'] == section['id']
+                    ]
+                    
+                    category_names = [
+                        category['name'] for category in work_categories 
+                        if category['id'] in related_category_ids
+                    ]
+                    
+                    display_item = {
+                        'id': section['id'],
+                        'name': section['name'],
+                        'related_categories': ', '.join(category_names) if category_names else None
+                    }
+                    display_data.append(display_item)
+                
+                data = display_data
+                
+                column_order = ['id', 'name', 'related_categories']
                 header_names = {
                     'id': '№',
-                    'name': 'Название раздела'
+                    'name': 'Название раздела',
+                    'related_categories': 'Связанные категории'
                 }
             else:
                 data = getters.sort_by_id(self.supabase, self.current_table, 'category_id') 
@@ -127,7 +154,6 @@ class PageDB(QMainWindow):
                     elif column_name == 'id':
                         item = QTableWidgetItem(str(row_idx + 1))
                         item.setData(Qt.ItemDataRole.UserRole + 1, value)
-                        
                     else:
                         item = QTableWidgetItem(str(value))
 
@@ -997,7 +1023,7 @@ class PageDB(QMainWindow):
         reserved_space = 80
         total_width = self.table_db.viewport().width() - reserved_space
 
-        percents_section = {
+        percents_main = {
             0: 0.1,
             1: 0.2,
             2: 0.5,
@@ -1009,14 +1035,26 @@ class PageDB(QMainWindow):
             0: 0.1,
             1: 0.9
         }
+        
+        percents_section = {
+            0: 0.1,
+            1: 0.45,
+            2: 0.45
+        }
 
-        if self.current_table in ['works_categories', 'materials_categories', 'sections']:
+        if self.current_table in ['works_categories', 'materials_categories']:
             for col, percent in percents_category.items():
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
                 self.table_db.setColumnWidth(col, int(total_width * percent))
 
         elif self.current_table in ['works', 'materials']:
+            for col, percent in percents_main.items():
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+                self.table_db.setColumnWidth(col, int(total_width * percent))
+                
+        elif self.current_table in ['sections']:
             for col, percent in percents_section.items():
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
                 self.table_db.setColumnWidth(col, int(total_width * percent))
+                
         header.setStretchLastSection(False)
