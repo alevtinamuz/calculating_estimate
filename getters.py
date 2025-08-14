@@ -52,6 +52,11 @@ def get_all_table(supabase, name_of_table: str):
     
     return response.data
 
+def get_section_realtions(supabase, section_id):
+    response = supabase.table('section_work_category_relations').select('category_id').eq('section_id', section_id).execute()
+    
+    return response.data
+
 def get_entity_by_id(supabase, name_of_table: str, entity_id: int):
     if entity_id:
         response = supabase.table(name_of_table).select('*').eq('id', entity_id).execute()

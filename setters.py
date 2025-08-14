@@ -42,6 +42,14 @@ def add_section(supabase, name):
     .insert({"name": name})
     .execute()
   )
+  return response
+
+def add_relations(supabase, relation_data):
+  response = (
+    supabase.table('section_work_category_relations')
+    .insert(relation_data)
+    .execute()
+  )
   
 def update_name_of_materials(supabase, id, new_name):
   response = (
@@ -166,12 +174,28 @@ def delete_work_category(supabase, id):
   )
   
 def delete_section(supabase, id):
-  response = (
-    supabase.table("sections")
-    .delete()
-    .eq("id", id)
-    .execute()
+  relations_response = (
+      supabase.table("section_work_category_relations")
+      .delete()
+      .eq("section_id", id)
+      .execute()
   )
+  
+  section_response = (
+      supabase.table("sections")
+      .delete()
+      .eq("id", id)
+      .execute()
+  )
+
+def delete_relation(supabase, section_id, category_id):
+    response = (
+      supabase.table("section_work_category_relations")
+      .delete()
+      .eq("section_id", section_id)
+      .eq("category_id", category_id)
+      .execute()
+    )
   
 def delete_material(supabase, id):
   repsonse = (
