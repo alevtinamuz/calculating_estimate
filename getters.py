@@ -34,9 +34,9 @@ def get_materials_by_substr(supabase, substr):
 
 def get_entity_by_substr(supabase, name_of_table: str, substr, cat_id: int = 0):
     if cat_id:
-        response = supabase.table(name_of_table).select('*').eq('category_id', cat_id).ilike('name', f'%{substr}%').execute()
+        response = supabase.table(name_of_table).select('*').eq('category_id', cat_id).or_(f"name.ilike.%{substr}%,keywords.ilike.%{substr}%").execute()
     else:
-        response = supabase.table(name_of_table).select('*').ilike('name', f'%{substr}%').execute()
+        response = supabase.table(name_of_table).select('*').or_(f"name.ilike.%{substr}%,keywords.ilike.%{substr}%").execute()
 
     return response.data
 
@@ -49,6 +49,11 @@ def get_works_by_substr(supabase, substr):
 
 def get_all_table(supabase, name_of_table: str):
     response = supabase.table(name_of_table).select('*').execute()
+    
+    return response.data
+
+def get_section_realtions(supabase, section_id):
+    response = supabase.table('section_work_category_relations').select('category_id').eq('section_id', section_id).execute()
     
     return response.data
 
