@@ -35,9 +35,10 @@ class DoubleSpinBox(QDoubleSpinBox):
         return f"{value:.{self.decimals()}f}".replace(',', '.')
 
 class ComboBoxDelegate(QStyledItemDelegate):
-    def __init__(self, parent, supabase, main_window):
-        super().__init__(parent)
+    def __init__(self, table_widget, supabase, main_window):
+        super().__init__(table_widget)
         self.supabase = supabase
+        self.table = table_widget
         self.current_editor = None
         self.current_row = -1
         self.current_col = -1
@@ -45,6 +46,9 @@ class ComboBoxDelegate(QStyledItemDelegate):
         self.main_window = main_window
         self.search_line_edit = None
         self.last_selected_id = None
+        self.sections_list = None
+        self.main_list = None
+        self.sub_list = None
         
     def commitAndClose(self, editor):
         """Сохраняет данные и закрывает редактор"""
@@ -54,6 +58,31 @@ class ComboBoxDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         self.current_row = index.row()
         self.current_col = index.column()
+
+        if self.table.columnSpan(index.row(), index.column()) > 10:
+            editor = QWidget(parent, Qt.WindowType.Popup)
+            editor.setWindowFlag(Qt.WindowType.FramelessWindowHint)
+            editor.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+            editor.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
+
+            layout = QVBoxLayout(editor)
+
+            # self.search_line_edit = QLineEdit(editor)
+            # self.search_line_edit.setPlaceholderText("Поиск...")
+            # # self.search_line_edit.textChanged.connect(self.filter_items)
+            # layout.addWidget(self.search_line_edit)
+
+            self.sections_list = QListWidget(editor)
+            layout.addWidget(self.sections_list)
+
+            self.load_initial_data()
+
+            current_value = index.data(Qt.ItemDataRole.DisplayRole)
+
+            if current_value:
+                self.set_current_value_section(current_value)
+
+            return editor
 
         if index.column() in [1, 6]:
             try:
@@ -126,6 +155,24 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
             return editor
 
+    def set_current_value_section(self, current_value):
+        """Устанавливает текущее значение в комбобоксы"""
+        if not current_value:
+            return
+
+        # Ищем значение в sub_list
+        for i in range(self.sections_list.count()):
+            item = self.sections_list.item(i)
+            # Получаем текст (аналог .currentText() в QComboBox)
+            item_text = item.text()
+            # Получаем сохранённый id (аналог .currentData() в QComboBox)
+            item_id = item.data(Qt.ItemDataRole.UserRole)
+
+            if item_text == current_value:
+                self.sections_list.setCurrentRow(i)
+                self.last_selected_id = item_id
+                break
+
     def set_current_value(self, current_value):
         """Устанавливает текущее значение в комбобоксы"""
         if not current_value:
@@ -154,7 +201,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
     def updateEditorGeometry(self, editor, option, index):
         """Позиционирование редактора с учетом границ экрана"""
-        if index.column() in [1, 6]:  # Только для нужных колонок
+
+        # if self.table.columnSpan(index.row(), index.column()) > 10:
+
+        if index.column() in [0, 6]:  # Только для нужных колонок
             try:
                 # Получаем геометрию ячейки
                 rect = option.rect
@@ -167,17 +217,18 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 screen_geometry = screen.availableGeometry()
 
                 # Рассчитываем размеры редактора
-                editor_height = editor.sizeHint().height()
+                editor_height = 300
                 editor_width = max(rect.width(), 300)
-
+                #
                 editor_x = global_pos.x() - 30
-
-                if global_pos.y() + editor_height > screen_geometry.bottom():
-                    editor_y = global_pos.y() - editor_height - rect.height()
-                else:
-                    editor_y = global_pos.y()
-                if editor_y < screen_geometry.top():
-                    editor_y = screen_geometry.top()
+                editor_y = global_pos.y()
+                #
+                # if global_pos.y() + editor_height > screen_geometry.bottom():
+                #     editor_y = global_pos.y() - editor_height - rect.height()
+                # else:
+                #     editor_y = global_pos.y()
+                # if editor_y < screen_geometry.top():
+                #     editor_y = screen_geometry.top()
 
                 # Применяем вычисленные координаты
                 editor.move(QPoint(editor_x, editor_y))
@@ -191,10 +242,25 @@ class ComboBoxDelegate(QStyledItemDelegate):
             # Для других колонок - стандартное поведение
             super().updateEditorGeometry(editor, option, index)
 
-    def load_initial_data(self, column):
+    def load_initial_data(self, column=0):
         """Загрузка начальных данных в комбобоксы"""
         entity_type = "works" if column == 1 else "materials"
         try:
+
+            if self.table.columnSpan(self.current_row, self.current_col) > 10:
+                sections = self.supabase.table("sections").select("*").execute().data
+                self.sections_list.clear()
+                print(*[section['name'] for section in sections])
+
+                for section in sections:
+                    item = QListWidgetItem(section['name'])
+                    item.setData(Qt.ItemDataRole.UserRole, section['id'])
+                    self.sections_list.addItem(item)
+
+                self.sections_list.setCurrentRow(0)
+
+                return
+
             categories = self.supabase.table(f"{entity_type}_categories").select('*').execute().data
             self.main_list.clear()
             all_categories_item = QListWidgetItem("Все категории")
@@ -255,6 +321,19 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
     def setModelData(self, editor, model, index):
         """Сохраняет выбранное значение в модель"""
+        if self.table.columnSpan(self.current_row, self.current_col) > 10:
+
+            if not self.sections_list.currentItem():
+                self.sections_list.setCurrentRow(0)
+
+            selected_item = self.sections_list.currentItem()
+            selected_text = selected_item.text()
+            # selected_id = selected_item.data(Qt.ItemDataRole.UserRole)
+
+            model.setData(index, selected_text)
+
+            return
+
         if index.column() in [1, 6]:  # Обрабатываем только колонки с названиями
 
             if not self.sub_list.currentItem():

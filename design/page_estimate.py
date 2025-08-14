@@ -81,6 +81,14 @@ class PageEstimate(QMainWindow):
             print(f"Ошибка создания таблицы: {e}")
             raise
 
+    def add_row_section(self):
+        """Добавляет строку с работой в таблицу"""
+        try:
+            self.table_manager.add_row_section()
+
+        except Exception as e:
+            self.show_error("Не удалось добавить строку работы", str(e))
+
     def add_row_work(self):
         """Добавляет строку с работой в таблицу"""
         try:
@@ -123,6 +131,7 @@ class PageEstimate(QMainWindow):
         button_panel = QWidget()
         button_layout = QHBoxLayout(button_panel)
 
+        add_section_btn = self.create_button("Добавить раздел", lambda: self.add_row_section())
         add_work_btn = self.create_button("Добавить работу", lambda: self.add_row_work())
         add_material_btn = self.create_button("Добавить материал", lambda: self.add_row_material())
         delete_work_btn = self.create_button("Удалить работу", lambda: self.delete_selected_work())
@@ -130,6 +139,7 @@ class PageEstimate(QMainWindow):
         clear_table_btn = self.create_button("Очистить таблицу", lambda: self.clear_table())
         export_pdf_btn = self.create_button("Экспорт в PDF", lambda: self.export_to_pdf())
 
+        button_layout.addWidget(add_section_btn)
         button_layout.addWidget(add_work_btn)
         button_layout.addWidget(add_material_btn)
         button_layout.addWidget(delete_work_btn)
