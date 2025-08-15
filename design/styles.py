@@ -388,6 +388,11 @@ ESTIMATE_TABLE_STYLE = f"""
         padding: 6px;
         border-right: 1px solid {DARK_GRAY};
         border-bottom: 1px solid {DARK_GRAY};
+        text-align: center;
+    }}
+    
+    QTableWidget QTableItem {{
+        text-align: center !important;
     }}
 
     QTableWidget::item:selected {{
