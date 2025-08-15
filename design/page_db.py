@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QMovie
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel, QHeaderView, QSizePolicy, QHBoxLayout, QComboBox, \
     QTableWidget, QPushButton, QToolButton, QMessageBox, QDialog, QDialogButtonBox, QLineEdit, QDoubleSpinBox, \
@@ -14,6 +14,84 @@ from design.styles import LABEL_STYLE, TOOL_PANEL_STYLE, DROPDOWN_STYLE, DATA_TA
     ACTION_BUTTONS_STYLE, SEARCH_STYLE
 
 BACKUP_VERSION = "1.0"
+
+class DataLoader(QThread):
+    data_loaded = pyqtSignal(dict)
+    
+    def __init__(self, supabase, current_table):
+        super().__init__()
+        self.supabase = supabase
+        self.current_table = current_table
+    
+    def run(self):
+        try:
+            result = {}
+            
+            if self.current_table in ['works_categories', 'materials_categories']:
+                data = getters.sort_by_id(self.supabase, self.current_table, 'id')
+                result = {
+                    'data': data,
+                    'column_order': ['id', 'name'],
+                    'header_names': {
+                        'id': '№',
+                        'name': 'Название категории'
+                    }
+                }
+                
+            elif self.current_table in ['sections']:
+                data_sections = getters.sort_by_id(self.supabase, self.current_table, 'id')
+                data_relations = getters.sort_by_id(self.supabase, 'section_work_category_relations', 'section_id')
+                work_categories = getters.get_all_table(self.supabase, 'works_categories')
+                
+                display_data = []
+                for section in data_sections:
+                    related_category_ids = [
+                        related['category_id'] for related in data_relations 
+                        if related['section_id'] == section['id']
+                    ]
+                    
+                    category_names = [
+                        category['name'] for category in work_categories 
+                        if category['id'] in related_category_ids
+                    ]
+
+                    display_data.append({
+                        'id': section['id'],
+                        'name': section['name'],
+                        'related_categories': ', '.join(category_names) if category_names else '-',
+                        'related_ids': ','.join(related_category_ids)
+                    })
+                
+                result = {
+                    'data': display_data,
+                    'column_order': ['id', 'name', 'related_categories', 'related_ids'],
+                    'header_names': {
+                        'id': '№',
+                        'name': 'Название раздела',
+                        'related_categories': 'Связанные категории',
+                        'related_ids': 'related_ids'
+                    }
+                }
+                
+            else:
+                data = getters.sort_by_id(self.supabase, self.current_table, 'category_id')
+                result = {
+                    'data': data,
+                    'column_order': ['id', 'category_id', 'name', 'price', 'unit', 'keywords'],
+                    'header_names': {
+                        'id': '№',
+                        'category_id': 'Категория',
+                        'name': 'Название',
+                        'price': 'Цена',
+                        'unit': 'Ед. изм.',
+                        'keywords': "keywords"
+                    }
+                }
+            
+            self.data_loaded.emit(result)
+            
+        except Exception as e:
+            print('Error in thread:', e)
 
 class PageDB(QMainWindow):
     def __init__(self, supabase):
@@ -52,71 +130,31 @@ class PageDB(QMainWindow):
         self.load_data_from_supabase()
 
     def load_data_from_supabase(self):
-        """Загружает данные из Supabase и отображает их в таблице"""
+        """Загружает данные с анимацией загрузки"""
         try:
+            # Настройка анимации
             gif_path = os.path.join(os.path.dirname(__file__), "spinner.gif")
-            loading_movie = QMovie(gif_path)
-            self.label.setMovie(loading_movie)
-            loading_movie.start()
+            self.loading_movie = QMovie(gif_path)
+            self.label.setMovie(self.loading_movie)
+            self.loading_movie.start()
             self.label.setVisible(True)
-
             self.table_db.setVisible(False)
-            QApplication.processEvents()
 
-            if self.current_table in ['works_categories', 'materials_categories']:
-                data = getters.sort_by_id(self.supabase, self.current_table, 'id') 
-                column_order = ['id', 'name']
-                header_names = {
-                    'id': '№',
-                    'name': 'Название категории'
-                }
-            elif self.current_table in ['sections']:
-                data_sections = getters.sort_by_id(self.supabase, self.current_table, 'id')
-                data_relations = getters.sort_by_id(self.supabase, 'section_work_category_relations', 'section_id')
-                work_categories = getters.get_all_table(self.supabase, 'works_categories')
-                
-                # Создаем список для отображения
-                display_data = []
-                
-                for section in data_sections:
-                    related_category_ids = [
-                        related['category_id'] for related in data_relations 
-                        if related['section_id'] == section['id']
-                    ]
-                    
-                    category_names = [
-                        category['name'] for category in work_categories 
-                        if category['id'] in related_category_ids
-                    ]
+            # Создаем и запускаем поток
+            self.loader_thread = DataLoader(self.supabase, self.current_table)
+            self.loader_thread.data_loaded.connect(self.setup_table_data)
+            self.loader_thread.start()
 
-                    display_item = {
-                        'id': section['id'],
-                        'name': section['name'],
-                        'related_categories': ', '.join(category_names) if category_names else '-',
-                        'related_ids': ','.join(related_category_ids)
-                    }
-                    display_data.append(display_item)
-                
-                data = display_data
-                
-                column_order = ['id', 'name', 'related_categories', 'related_ids']
-                header_names = {
-                    'id': '№',
-                    'name': 'Название раздела',
-                    'related_categories': 'Связанные категории',
-                    'related_ids': 'related_ids'
-                }
-            else:
-                data = getters.sort_by_id(self.supabase, self.current_table, 'category_id') 
-                column_order = ['id', 'category_id', 'name', 'price', 'unit', 'keywords']
-                header_names = {
-                    'id': '№',
-                    'category_id': 'Категория',
-                    'name': 'Название',
-                    'price': 'Цена',
-                    'unit': 'Ед. изм.',
-                    'keywords': "keywords"
-                }
+        except Exception as e:
+            self.label.setText(f"Ошибка: {str(e)}")
+
+
+    def setup_table_data(self, result):
+        """Обработка загруженных данных"""
+        try:
+            data = result['data']
+            column_order = result['column_order']
+            header_names = result['header_names']
 
             if not data:
                 self.label.setText("Нет данных для отображения")
@@ -146,12 +184,11 @@ class PageDB(QMainWindow):
                 for col_idx, column_name in enumerate(column_order):
                     value = row_data[column_name]
                     
-                    # Заменяем category_id на название категории, но сохраняем оригинальный ID
                     if column_name == 'category_id' and self.current_table in ['works', 'materials']:
                         original_id = value
                         value = category_names.get(str(value), str(value))
                         item = QTableWidgetItem(str(value))
-                        item.setData(Qt.ItemDataRole.UserRole, original_id)  # Сохраняем оригинальный ID
+                        item.setData(Qt.ItemDataRole.UserRole, original_id)
                         
                     elif column_name == 'id':
                         item = QTableWidgetItem(str(row_idx + 1))
@@ -169,9 +206,7 @@ class PageDB(QMainWindow):
             self.table_db.verticalHeader().setVisible(False)
             self.table_db.setShowGrid(False)
             self.table_db.setFrameShape(QTableWidget.Shape.NoFrame)
-
             self.table_db.setStyleSheet(DATA_TABLE_STYLE)
-
             self.table_db.viewport().update()
             self.table_db.updateGeometry()
 
@@ -183,11 +218,11 @@ class PageDB(QMainWindow):
                 self.table_db.setColumnHidden(5, True)
             if self.current_table in ['sections']:
                 self.table_db.setColumnHidden(3, True)
+                
+            self.loading_movie.stop()
             self.label.setVisible(False)
             self.table_db.setVisible(True)
-            # self.label.setText("Данные успешно загружены")
 
-            # Еще раз обновляем геометрию после отображения
             QTimer.singleShot(200, lambda: [
                 self.adjust_column_widths(),
                 self.table_db.viewport().update()
@@ -195,8 +230,10 @@ class PageDB(QMainWindow):
 
         except Exception as e:
             self.label.setText(f"Ошибка загрузки: {str(e)}")
+            if hasattr(self, 'loading_movie'):
+                self.loading_movie.stop()
             print('Error:', e)
-
+        
     def hide_all_tool_buttons(self):
         """Скрывает все кнопки"""
         for buttons in self.action_buttons.values():
@@ -696,14 +733,14 @@ class PageDB(QMainWindow):
             # Создаем диалог выбора групп таблиц
             dialog = QDialog(self)
             dialog.setWindowTitle("Выбор данных для выгрузки")
-            dialog.setFixedSize(300, 200)
+            dialog.setFixedSize(400, 200)
             
             layout = QVBoxLayout()
             layout.addWidget(QLabel("Выберите данные для выгрузки:"))
             
             # Группы таблиц (только полные связанные группы)
             table_groups = {
-                'works': QCheckBox("Работы с категориями работ"),
+                'works': QCheckBox("Работы с категориями работ и зависимости с разделами"),
                 'materials': QCheckBox("Материалы с категориями материалов")
             }
             
@@ -759,6 +796,11 @@ class PageDB(QMainWindow):
                         # Выгружаем работы
                         progress.setLabelText("Выгрузка работ...")
                         data['works'] = getters.get_all_table(self.supabase, 'works')
+                        progress.setValue(progress.value() + 1)
+                        
+                        progress.setLabelText("Выгрузка разделов с зависимостями...")
+                        data['sections'] = getters.get_all_table(self.supabase, 'sections')
+                        data['section_work_category_relations'] = getters.get_all_table(self.supabase, 'section_work_category_relations')
                         progress.setValue(progress.value() + 1)
                         
                     elif group == 'materials':
@@ -822,10 +864,10 @@ class PageDB(QMainWindow):
                 
             # Доступные группы для восстановления (только полные связанные группы)
             available_groups = []
-            if 'works' in data['metadata']['tables'] and 'works_categories' in data and 'works' in data:
-                available_groups.append(('works', "Работы с категориями"))
+            if 'works' in data['metadata']['tables'] and 'works_categories' in data and 'works' in data and 'sections' in data and 'section_work_category_relations' in data:
+                available_groups.append(('works', "Работы с категориями работ и зависимости с разделами"))
             if 'materials' in data['metadata']['tables'] and 'materials_categories' in data and 'materials' in data:
-                available_groups.append(('materials', "Материалы с категориями"))
+                available_groups.append(('materials', "Материалы с категориями материалов"))
                 
             if not available_groups:
                 QMessageBox.critical(self, "Ошибка", "В файле нет полных групп данных для восстановления!")
@@ -834,7 +876,7 @@ class PageDB(QMainWindow):
             # Диалог выбора групп
             dialog = QDialog(self)
             dialog.setWindowTitle("Выбор данных для восстановления")
-            dialog.setFixedSize(300, 200)
+            dialog.setFixedSize(400, 200)
             
             layout = QVBoxLayout()
             layout.addWidget(QLabel("Выберите группы данных для восстановления:"))
@@ -885,19 +927,39 @@ class PageDB(QMainWindow):
                 for group in selected_groups:
                     if group == 'works':
                         # Восстанавливаем категории работ с оригинальными ID
-                        progress.setLabelText("Восстановление категорий работ...")
+                        progress.setLabelText("Очистка связей разделов...")
+                        setters.clear_relations_table(self.supabase, 'section_work_category_relations')
+                        progress.setValue(progress.value() + 1)
+
+                        # Затем очищаем работы
+                        progress.setLabelText("Очистка работ...")
+                        setters.clear_table(self.supabase, 'works')
+                        progress.setValue(progress.value() + 1)
+
+                        # Теперь можно очистить категории работ
+                        progress.setLabelText("Очистка категорий работ...")
                         setters.clear_table(self.supabase, 'works_categories')
-                        
+                        progress.setValue(progress.value() + 1)
+
+                        # Восстанавливаем категории работ с оригинальными ID
+                        progress.setLabelText("Восстановление категорий работ...")
                         categories_data = [{'id': c['id'], 'name': c['name']} for c in data['works_categories']]
-                        
                         setters.batch_insert_work_categories_with_ids(self.supabase, categories_data)
-                            
                         progress.setValue(progress.value() + 1)
 
                         # Восстанавливаем работы
                         progress.setLabelText("Восстановление работ...")
-                        setters.clear_table(self.supabase, 'works')
                         setters.batch_insert_works_fast(self.supabase, data['works'])
+                        progress.setValue(progress.value() + 1)
+
+                        # Восстанавливаем разделы и связи
+                        progress.setLabelText("Восстановление разделов...")
+                        setters.clear_table(self.supabase, 'sections')
+                        setters.batch_insert_sections_fast(self.supabase, data['sections'])
+                        progress.setValue(progress.value() + 1)
+
+                        progress.setLabelText("Восстановление связей...")
+                        setters.batch_insert_relations_sections_fast(self.supabase, data['section_work_category_relations'])
                         progress.setValue(progress.value() + 1)
                         
                     elif group == 'materials':
