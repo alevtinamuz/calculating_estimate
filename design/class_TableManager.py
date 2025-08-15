@@ -328,6 +328,7 @@ class TableViewManager:
         for section in self.model.estimate:
             for work in section.works:
                 item = QTableWidgetItem(str(work.number))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(work.row, 0, item)
 
     def add_section_row(self):
@@ -439,6 +440,7 @@ class TableViewManager:
                     new_item = QTableWidgetItem(item.text())
                     new_item.setFlags(item.flags())
                     new_item.setData(Qt.ItemDataRole.UserRole, item.data(Qt.ItemDataRole.UserRole))
+                    new_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(work_start_row, col, new_item)
 
             # Удаляем строку следующего материала
@@ -468,6 +470,7 @@ class TableViewManager:
 
                 current_col_5 = self.table.item(row, 5).text() if self.table.item(row, 5) else ""
                 if item_col_5.text() != current_col_5:
+                    item_col_5.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(row, 5, item_col_5)
 
             elif col == 8 or col == 9:
@@ -476,12 +479,14 @@ class TableViewManager:
                 current_col_10 = self.table.item(row, 10).text() if self.table.item(row, 10) else ""
 
                 if item_col_10.text() != current_col_10:
+                    item_col_10.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(row, 10, item_col_10)
 
                 item_col_11 = QTableWidgetItem(str(work.total_materials))
                 current_col_11 = self.table.item(row, 11).text() if self.table.item(row, 11) else ""
 
                 if item_col_11.text() != current_col_11:
+                    item_col_11.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(work.row, 11, item_col_11)
 
             elif col == 11:
@@ -489,6 +494,7 @@ class TableViewManager:
                 current_col_11 = self.table.item(row, 11).text() if self.table.item(row, 11) else ""
 
                 if item_col_11.text() != current_col_11:
+                    item_col_11.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(work.row, 11, item_col_11)
 
         except Exception as e:
@@ -567,7 +573,7 @@ class TableResultsViewManager:
         for row, text in enumerate(headers):
             item = QTableWidgetItem(text)
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(row, 0, item)
 
     def adjust_column_widths(self):

@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt, QPoint, QStringListModel, QLocale
 from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit, \
     QListWidget, QListWidgetItem, QDoubleSpinBox
-from PyQt6.QtGui import QDoubleValidator, QValidator
+from PyQt6.QtGui import QDoubleValidator, QValidator, QCursor
 
 import getters
 from design.styles import DROPDOWN_DELEGATE_STYLE, SPIN_BOX_STYLE
@@ -67,11 +67,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
             layout = QVBoxLayout(editor)
 
-            # self.search_line_edit = QLineEdit(editor)
-            # self.search_line_edit.setPlaceholderText("Поиск...")
-            # # self.search_line_edit.textChanged.connect(self.filter_items)
-            # layout.addWidget(self.search_line_edit)
-
             self.sections_list = QListWidget(editor)
             layout.addWidget(self.sections_list)
 
@@ -81,6 +76,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
             if current_value:
                 self.set_current_value_section(current_value)
+
+            self.sections_list.itemDoubleClicked.connect(
+                lambda: self.commitAndClose(editor)  # Новый метод
+            )
 
             return editor
 
@@ -210,9 +209,64 @@ class ComboBoxDelegate(QStyledItemDelegate):
     def updateEditorGeometry(self, editor, option, index):
         """Позиционирование редактора с учетом границ экрана"""
 
-        # if self.table.columnSpan(index.row(), index.column()) > 10:
+        if self.table.columnSpan(index.row(), index.column()) > 10:
+            # Получаем геометрию ячейки
+            rect = option.rect
+            viewport = editor.parent()
+            cursor_pos = QCursor.pos()
+            global_pos = viewport.mapToGlobal(rect.bottomLeft())
+            screen = viewport.screen().availableGeometry()
 
-        if index.column() in [0, 6]:  # Только для нужных колонок
+            # Рассчитываем размеры списка
+            item_height = self.sections_list.sizeHintForRow(0)
+            item_count = self.sections_list.count()
+            visible_items = min(7, item_count)
+            content_height = item_height * visible_items + 15
+
+            # Настраиваем список ДО установки размеров
+            self.sections_list.setMinimumHeight(content_height)
+            self.sections_list.setMaximumHeight(content_height)
+
+            # Ширина редактора (автоподбор)
+            editor_width = max(
+                self.sections_list.sizeHint().width() + 20,  # Ширина содержимого + отступы
+                250
+            )
+
+            # Общая высота редактора (список + отступы)
+            editor_height = content_height + 15
+
+            # Позиционирование
+            editor_x = max(screen.left(), cursor_pos.x() - editor_width // 2)
+            editor_x = min(editor_x, screen.right() - editor_width)
+
+            if global_pos.y() + editor_height > screen.bottom():
+                editor_y = global_pos.y() - editor_height - rect.height()
+            else:
+                editor_y = global_pos.y()
+            if editor_y < screen.top():
+                editor_y = screen.top()
+
+            # Устанавливаем политику скролла
+            scroll_policy = (Qt.ScrollBarPolicy.ScrollBarAsNeeded if item_count > 7
+                             else Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.sections_list.setVerticalScrollBarPolicy(scroll_policy)
+
+            # 1. Сначала устанавливаем размеры списка
+            self.sections_list.setFixedHeight(content_height)
+            self.sections_list.setMinimumWidth(editor_width - 20)  # - отступы
+
+            # 2. Затем устанавливаем размеры главного редактора
+            editor.setFixedSize(editor_width, editor_height)
+
+            # 3. Позиционируем
+            editor.move(editor_x, editor_y)
+
+            # 4. Обновляем layout (если используется)
+            if editor.layout():
+                editor.layout().activate()
+
+        elif index.column() in [1, 6]:  # Только для нужных колонок
             try:
                 # Получаем геометрию ячейки
                 rect = option.rect
@@ -350,6 +404,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
             # selected_id = selected_item.data(Qt.ItemDataRole.UserRole)
 
             model.setData(index, selected_text)
+            model.setData(index, Qt.AlignmentFlag.AlignCenter, Qt.ItemDataRole.TextAlignmentRole)
 
             return
 
@@ -363,6 +418,8 @@ class ComboBoxDelegate(QStyledItemDelegate):
             selected_id = selected_item.data(Qt.ItemDataRole.UserRole)
 
             model.setData(index, selected_text)
+
+            model.setData(index, Qt.AlignmentFlag.AlignCenter, Qt.ItemDataRole.TextAlignmentRole)
 
             try:
                 # Определяем тип сущности (работа или материал)
