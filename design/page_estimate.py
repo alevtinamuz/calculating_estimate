@@ -3,6 +3,7 @@ from PyQt6.QtGui import QPageSize, QPainter, QPageLayout, QFont, QPen
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QTableWidget, QTableWidgetItem, QHBoxLayout, \
     QPushButton, QMainWindow, QFileDialog, QSizePolicy
+import webbrowser
 
 import os
 
@@ -344,13 +345,18 @@ class PageEstimate(QMainWindow):
 
                         for material in work.materials[1:]:
                             material_row = [
-                                "", "", "", "", "", "",
-                                self.safe_str(material.name, "-"),
-                                self.safe_str(material.unit, "-"),
-                                self.safe_str(material.quantity, ""),
-                                self.safe_format_float(material.price, "0.0"),
-                                self.safe_format_float(work.total_materials, "0.0"),
-                                ""
+                                Paragraph("", table_text_style),
+                                Paragraph("", table_text_style),
+                                Paragraph("", table_text_style),
+                                Paragraph("", table_text_style),
+                                Paragraph("", table_text_style),
+                                Paragraph("", table_text_style),
+                                Paragraph(self.safe_str(material.name, "-"), table_text_style),
+                                Paragraph(self.safe_str(material.unit, "-"), table_text_style),
+                                Paragraph(self.safe_str(material.quantity, ""), table_text_style),
+                                Paragraph(self.safe_format_float(material.price, "0.0"), table_text_style),
+                                Paragraph(self.safe_format_float(work.total_materials, "0.0"), table_text_style),
+                                Paragraph("", table_text_style)
                             ]
                             data.append(material_row)
                     else:
@@ -486,6 +492,8 @@ class PageEstimate(QMainWindow):
             # Генерация PDF
             doc.build(elements)
             QMessageBox.information(self, "Успешно", f"PDF успешно сохранен:\n{file_path}")
+
+            webbrowser.open_new_tab(f"file://{file_path}")
 
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Ошибка при сохранении PDF:\n{str(e)}")
