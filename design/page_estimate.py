@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QTableWid
     QPushButton, QMainWindow, QFileDialog, QSizePolicy
 
 import os
+
+from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import Image, LongTable
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -168,8 +170,8 @@ class PageEstimate(QMainWindow):
             return default
                 
     def safe_str(self, value, default=""):
-        return str(value).strip() if value else default   
-            
+        return str(value).strip() if value else default
+
     def export_to_pdf(self):
         """Экспортирует таблицу в PDF с использованием reportlab"""
         try:
@@ -185,10 +187,10 @@ class PageEstimate(QMainWindow):
             doc = SimpleDocTemplate(
                 file_path,
                 pagesize=landscape(A4),
-                leftMargin=5*mm,
-                rightMargin=5*mm,
-                topMargin=5*mm,
-                bottomMargin=5*mm
+                leftMargin=5 * mm,
+                rightMargin=5 * mm,
+                topMargin=5 * mm,
+                bottomMargin=5 * mm
             )
 
             # Регистрируем шрифты
@@ -222,7 +224,7 @@ class PageEstimate(QMainWindow):
                 parent=styles['Normal'],
                 fontName='Arial-Bold',
                 fontSize=8,
-                alignment=1,
+                alignment=TA_CENTER,
                 leading=10
             )
             table_text_style = ParagraphStyle(
@@ -268,7 +270,7 @@ class PageEstimate(QMainWindow):
                     logo_table_data = [
                         [Image(logo_path, width=100, height=100), Paragraph("Стоимость работ", title_style)]
                     ]
-                    logo_table = Table(logo_table_data, colWidths=[100, doc.width-100])
+                    logo_table = Table(logo_table_data, colWidths=[100, doc.width - 100])
                     logo_table.setStyle(TableStyle([
                         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                         ('ALIGN', (0, 0), (0, 0), 'LEFT'),
@@ -281,7 +283,6 @@ class PageEstimate(QMainWindow):
             except Exception as logo_error:
                 elements.append(Paragraph("Стоимость работ", title_style))
                 print(f"Не удалось загрузить логотип: {logo_error}")
-
 
             # Подготовка данных таблицы
             headers = [
@@ -296,69 +297,75 @@ class PageEstimate(QMainWindow):
                 "К-во", "Цена", "Сумма", ""
             ]
 
-
-
             data = [headers, fot_labels]
             data_summary = []
 
             # Ширины столбцов
             col_widths = [
-                10*mm, 53*mm, 15*mm, 15*mm,
-                21*mm, 21*mm, 53*mm, 15*mm,
-                15*mm, 21*mm, 21*mm, 22*mm
+                10 * mm, 53 * mm, 15 * mm, 15 * mm,
+                21 * mm, 21 * mm, 53 * mm, 15 * mm,
+                15 * mm, 21 * mm, 21 * mm, 22 * mm
             ]
-            
+
             work_start_rows = {}
+            section_start_rows = {}
 
-            for work_idx, work in enumerate(self.table_manager.model.works, 1):
+            for section_idx, section in enumerate(self.table_manager.model.estimate, 1):
+                # Добавляем строку с разделом
+                section_row = [Paragraph(section.name, table_header_style)] + [Paragraph("", table_text_style) for _ in range(len(headers) - 1)]
+                data.append(section_row)
+                section_start_rows[section_idx] = len(data) - 1
 
-                work_row = [
-                    str(work_idx),
-                    self.safe_str(work.name, "-"),
-                    self.safe_str(work.unit, "-"),
-                    self.safe_str(work.quantity, ""),
-                    self.safe_format_float(work.labor_cost, "0.0"),
-                    self.safe_format_float(work.total, "0.0"),
-                ]
-                
-                if work.materials:
-                    first_material = work.materials[0]
-                    total_sum = self.table_manager.model.total_sum_work_and_materials(work_idx - 1)
-                    
-                    work_row.extend([
-                        self.safe_str(first_material.name, "-"),
-                        self.safe_str(first_material.unit, "-"),
-                        self.safe_str(first_material.quantity, ""),
-                        self.safe_format_float(first_material.price, "0.0"),
-                        self.safe_format_float(work.total_materials, "0.0"),
-                        self.safe_format_float(total_sum, "0.0")
-                    ])
-                    
-                    data.append(work_row)
-                    work_start_rows[work_idx] = len(data) - 1
-                    
-                    for material in work.materials[1:]:                     
-                        material_row = [
-                            "", "", "", "", "", "",
-                            self.safe_str(material.name, "-"),
-                            self.safe_str(material.unit, "-"),
-                            self.safe_str(material.quantity, ""),
-                            self.safe_format_float(material.price, "0.0"),
-                            self.safe_format_float(work.total_materials, "0.0"),
-                            ""
-                        ]
-                        data.append(material_row)
-                else:
-                    data.append(work_row)
-                    work_start_rows[work_idx] = len(data) - 1
-                    
-            works_sum = sum([work.total for work in self.table_manager.model.works])
-            materials_sum = sum([work.total_materials for work in self.table_manager.model.works])
+                for work_idx, work in enumerate(section.works, 1):
+                    work_row = [
+                        Paragraph(str(work_idx), table_text_style),
+                        Paragraph(self.safe_str(work.name, "-"), table_text_style),
+                        Paragraph(self.safe_str(work.unit, "-"), table_text_style),
+                        Paragraph(self.safe_str(work.quantity, ""), table_text_style),
+                        Paragraph(self.safe_format_float(work.labor_cost, "0.0"), table_text_style),
+                        Paragraph(self.safe_format_float(work.total_work, "0.0"), table_text_style),
+                    ]
+
+                    if work.materials:
+                        first_material = work.materials[0]
+                        total_sum = self.table_manager.model.total_sum_work_and_materials(section_idx - 1, work_idx - 1)
+
+                        work_row.extend([
+                            Paragraph(self.safe_str(first_material.name, "-"), table_text_style),
+                            Paragraph(self.safe_str(first_material.unit, "-"), table_text_style),
+                            Paragraph(self.safe_str(first_material.quantity, ""), table_text_style),
+                            Paragraph(self.safe_format_float(first_material.price, "0.0"), table_text_style),
+                            Paragraph(self.safe_format_float(work.total_materials, "0.0"), table_text_style),
+                            Paragraph(self.safe_format_float(total_sum, "0.0"), table_text_style)
+                        ])
+
+                        data.append(work_row)
+                        work_start_rows[(section_idx, work_idx)] = len(data) - 1
+
+                        for material in work.materials[1:]:
+                            material_row = [
+                                "", "", "", "", "", "",
+                                self.safe_str(material.name, "-"),
+                                self.safe_str(material.unit, "-"),
+                                self.safe_str(material.quantity, ""),
+                                self.safe_format_float(material.price, "0.0"),
+                                self.safe_format_float(work.total_materials, "0.0"),
+                                ""
+                            ]
+                            data.append(material_row)
+                    else:
+                        data.append(work_row)
+                        work_start_rows[(section_idx, work_idx)] = len(data) - 1
+
+            works_sum = sum(work.total_work for section in self.table_manager.model.estimate for work in section.works)
+            materials_sum = sum(work.total_materials for section in self.table_manager.model.estimate for work in section.works)
             summary_sum = works_sum + materials_sum
-            
+
             summary_data = [
                 [
-                    Paragraph("Доставка материала, работа грузчиков, подъем материала, тарирование мусора, вынос/вывоз мусора (15% от стоимости материалов):", summary_text_style),
+                    Paragraph(
+                        "Доставка материала, работа грузчиков, подъем материала, тарирование мусора, вынос/вывоз мусора (15% от стоимости материалов):",
+                        summary_text_style),
                     *[Paragraph("", table_text_style) for _ in range(10)],
                     Paragraph(self.safe_format_float(materials_sum * 0.15, "0.0"), summary_value_style)
                 ],
@@ -369,7 +376,8 @@ class PageEstimate(QMainWindow):
                 [
                     Paragraph("Итого без НДС:", summary_text_style),
                     *[Paragraph("", table_text_style) for _ in range(10)],
-                    Paragraph(self.safe_format_float(summary_sum, "0.0"), summary_value_style)
+                    Paragraph(self.safe_format_float(summary_sum + materials_sum * 0.15, "0.0"),
+                              summary_value_style)
                 ],
                 [
                     Paragraph("В т.ч. ФОТ:", summary_text_style),
@@ -383,7 +391,6 @@ class PageEstimate(QMainWindow):
                 ]
             ]
 
-
             # Преобразуем данные в Paragraph
             table_data = []
             for i, row in enumerate(data):
@@ -392,9 +399,8 @@ class PageEstimate(QMainWindow):
                 elif i == 1:
                     table_data.append([Paragraph(str(label), table_header_style) for label in fot_labels])
                 else:
-                    table_data.append([Paragraph(cell, table_text_style) for cell in row])
-                    
-            
+                    table_data.append(row)
+                    # table_data.append([Paragraph(cell, table_text_style) for cell in row])
 
             # Создаем таблицу
             table = LongTable(table_data, colWidths=col_widths, repeatRows=2)
@@ -434,18 +440,26 @@ class PageEstimate(QMainWindow):
                 ('WORDWRAP', (1, 0), (1, -1), True),
                 ('WORDWRAP', (6, 0), (6, -1), True),
             ]
-            
-            for work_idx, start_row in work_start_rows.items():
-                work = self.table_manager.model.works[work_idx - 1]
-                
+
+            for section_idx, start_section_row in section_start_rows.items():
+                table_style.extend([
+                    ('SPAN', (0, start_section_row), (11, start_section_row)),
+                    ('BACKGROUND', (0, start_section_row), (11, start_section_row), colors.whitesmoke),
+                    ('FONTNAME', (0, start_section_row), (11, start_section_row), 'Arial-Bold'),
+                    ('ALIGN', (0, start_section_row), (11, start_section_row), 'CENTER'),  # Выравнивание по горизонтали
+                    ('VALIGN', (0, start_section_row), (11, start_section_row), 'MIDDLE')
+                ])
+
+            for (s_idx, w_idx), start_row in work_start_rows.items():
+                work = self.table_manager.model.estimate[s_idx - 1].works[w_idx - 1]
                 end_row = start_row
                 if work.materials:
                     end_row = start_row + len(work.materials) - 1
-                
-                if end_row > start_row: 
-                    for col in [0, 1, 2, 3, 4, 5, 10, 11]: 
+
+                if end_row > start_row:
+                    for col in [0, 1, 2, 3, 4, 5, 10, 11]:
                         table_style.append(('SPAN', (col, start_row), (col, end_row)))
-                        
+
             summary_style = [
                 ('SPAN', (0, 0), (10, 0)),
                 ('SPAN', (0, 1), (11, 1)),
@@ -462,11 +476,11 @@ class PageEstimate(QMainWindow):
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
             ]
-            
+
             table.setStyle(TableStyle(table_style))
             table_summary.setStyle(TableStyle(summary_style))
             elements.append(table)
-            elements.append(Spacer(1, 10*mm))
+            elements.append(Spacer(1, 10 * mm))
             elements.append(table_summary)
 
             # Генерация PDF

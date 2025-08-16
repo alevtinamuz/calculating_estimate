@@ -14,8 +14,6 @@ class DoubleSpinBox(QDoubleSpinBox):
         self.setLocale(QLocale("en"))  # или QLocale('en') для точки
 
         curLocal = QLocale("en")
-
-        print(curLocal.decimalPoint())
     
     def validate(self, text, pos):
         # Разрешаем и точку, и запятую
@@ -499,7 +497,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 # Сохраняем отображаемое значение с точкой
                 model.setData(index, f"{value}", Qt.ItemDataRole.DisplayRole)
 
-                print(model.data(index))
             except Exception as e:
                 print(f"Не удалось обновить количество: {e}")
 

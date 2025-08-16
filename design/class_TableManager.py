@@ -417,7 +417,6 @@ class TableViewManager:
 
         work = self.model.estimate[section_index].works[work_idx]
         work_height = work.height
-        print("\n height,", work_height, "\n")
 
         for _ in range(work_height):
             self.table.removeRow(work.row)
@@ -792,12 +791,9 @@ class EstimateDataModel:
                 print("work_idx is None")
                 return
 
-            # print("value", value)
-
             if col <= 5 and row == work_start_row:
                 if col == 1:  # Наименование работы
                     self.estimate[section_index].works[work_idx].name = value if value else ""
-                    print(self.estimate[section_index].works[work_idx].name)
                 elif col == 2:  # Ед. изм.
                     self.estimate[section_index].works[work_idx].unit = value if value else ""
                 elif col == 3:  # Количество
