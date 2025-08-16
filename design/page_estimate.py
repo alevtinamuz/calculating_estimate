@@ -108,6 +108,13 @@ class PageEstimate(QMainWindow):
         except Exception as e:
             self.show_error("Не удалось добавить строку материалов", str(e))
 
+    def delete_selected_section(self):
+        """Удаляет выбранный раздел"""
+        try:
+            self.table_manager.delete_selected_section()
+        except Exception as e:
+            self.show_error("Не удалось удалить раздел", str(e))
+
     def delete_selected_work(self):
         """Удаляет выбранную работу"""
         try:
@@ -137,6 +144,7 @@ class PageEstimate(QMainWindow):
         add_section_btn = self.create_button("Добавить раздел", lambda: self.add_row_section())
         add_work_btn = self.create_button("Добавить работу", lambda: self.add_row_work())
         add_material_btn = self.create_button("Добавить материал", lambda: self.add_row_material())
+        delete_section_btn = self.create_button("Удалить раздел", lambda: self.delete_selected_section())
         delete_work_btn = self.create_button("Удалить работу", lambda: self.delete_selected_work())
         delete_material_btn = self.create_button("Удалить материал", lambda: self.delete_selected_material())
         clear_table_btn = self.create_button("Очистить таблицу", lambda: self.clear_table())
@@ -145,6 +153,7 @@ class PageEstimate(QMainWindow):
         button_layout.addWidget(add_section_btn)
         button_layout.addWidget(add_work_btn)
         button_layout.addWidget(add_material_btn)
+        button_layout.addWidget(delete_section_btn)
         button_layout.addWidget(delete_work_btn)
         button_layout.addWidget(delete_material_btn)
         button_layout.addWidget(clear_table_btn)

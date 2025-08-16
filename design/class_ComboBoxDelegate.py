@@ -135,7 +135,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
                 self.current_editor = editor
 
-                QTimer.singleShot(200, lambda: self.search_line_edit.setFocus())
+                # QTimer.singleShot(200, lambda: self.search_line_edit.setFocus())
 
                 self.sub_list.itemDoubleClicked.connect(
                     lambda: self.commitAndClose(editor)  # Новый метод
