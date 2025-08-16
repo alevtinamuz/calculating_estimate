@@ -88,13 +88,13 @@ class EstimateTableManager:
 
             selected_row = selected_ranges[0].topRow()
 
-            # Если нет работ, добавляем новую
-            # if not self.model.estimate[section_index].works:
-            #     QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для добавления "
-            #                                                                 "материала")
-            #     return
+            section_index = self.model.find_section_by_row(selected_row)
 
-            # work_idx, work_start_row = self.view.find_selected_work()
+            # Если нет работ, добавляем новую
+            if not self.model.estimate[section_index].works:
+                QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для добавления "
+                                                                            "материала")
+                return
 
             self.model.add_material(selected_row)
             self.view.add_material_row(selected_row)
@@ -214,7 +214,7 @@ class EstimateTableManager:
 
             self.view.update_table_from_model(work.row, 11)
             self.view.update_table_from_model(work.row, 12)
-            # self.view_results.update_result_table()
+            self.view_results.update_result_table()
 
         except Exception as e:
             print(f"Ошибка при удалении материала: {e}")
@@ -256,7 +256,7 @@ class EstimateTableManager:
                     for col in range(top_left.column(), bottom_right.column() + 1):
                         self.model.update_model_from_table(row, col)
                         self.view.update_table_from_model(row, col)
-                        # self.view_results.update_result_table()
+                        self.view_results.update_result_table(row)
                         self.table.resizeRowToContents(row)
 
             except Exception as e:
@@ -305,7 +305,6 @@ class TableViewManager:
         ]
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
-        # self.table.horizontalHeader().setVisible(False)
 
         self.table.verticalHeader().setStyleSheet("""
             QHeaderView::section {
@@ -322,9 +321,6 @@ class TableViewManager:
 
     def renumber_rows(self):
         """Обновляет нумерацию работ"""
-        # for row in range(self.table.rowCount()):
-        #     self.table.setItem(row, 0, QTableWidgetItem(""))
-
         for section in self.model.estimate:
             for work in section.works:
                 item = QTableWidgetItem(str(work.number))
@@ -342,11 +338,6 @@ class TableViewManager:
 
     def add_work_row(self, row):
         self.table.insertRow(row)
-    #
-    #     section_index = self.model.find_section_by_row(row_pos)
-    #
-    #     self.fill_work_row(row_pos, len(self.model.estimate[section_index].works))
-    #
         self.table.selectRow(row)
 
     def add_material_row(self, row):
@@ -458,12 +449,12 @@ class TableViewManager:
 
             work = self.model.estimate[section_index].works[work_index]
 
-            # total_sum = self.model.total_sum_work_and_materials(work_index)
-            # item_col_12 = QTableWidgetItem(str(total_sum))
-            # current_col_12 = self.table.item(row, 12).text() if self.table.item(row, 12) else ""
+            total_sum = self.model.total_sum_work_and_materials(section_index, work_index)
+            item_col_12 = QTableWidgetItem(str(total_sum))
+            current_col_12 = self.table.item(row, 12).text() if self.table.item(row, 12) else ""
 
-            # if item_col_12.text() != current_col_12:
-            #     self.table.setItem(row, 12, item_col_12)
+            if item_col_12.text() != current_col_12:
+                self.table.setItem(row, 12, item_col_12)
 
             if col == 3 or col == 4:
                 item_col_5 = QTableWidgetItem(str(work.total_work))
@@ -565,9 +556,9 @@ class TableResultsViewManager:
         headers = [
             "Доставка материала, работа грузчиков, подъем материала, "
             "тарирование мусора, вынос/вывоз мусора (15% от стоимости материалов)",
-            "Итого без НДС",
-            "В т.ч. ФОТ",
-            "В т.ч. Материалы"
+            "ФОТ",
+            "Материалы",
+            "Итого без НДС"
         ]
         
         for row, text in enumerate(headers):
@@ -593,26 +584,29 @@ class TableResultsViewManager:
             width = int(table_width * percent)
             self.table.setColumnWidth(col, width)
 
-    # def update_result_table(self):
-    #     works_sum = sum([work.total_work for work in self.model.works])
-    #     materials_sum = sum([work.total_materials for work in self.model.works])
-    #     total_sum = works_sum + materials_sum
-    #
-    #     self.table.setItem(0, 1, QTableWidgetItem(str(round(materials_sum * 0.15, 2))))
-    #
-    #     self.table.setItem(1, 1, QTableWidgetItem(str(total_sum)))
-    #
-    #     self.table.setItem(2, 1, QTableWidgetItem(str(works_sum)))
-    #
-    #     self.table.setItem(3, 1, QTableWidgetItem(str(materials_sum)))
+    def update_result_table(self, row):
+        works_sum = 0
+        materials_sum = 0
+
+        for section in self.model.estimate:
+            for work in section.works:
+                works_sum += work.total_work
+                materials_sum += work.total_materials
+
+        total_sum = works_sum + materials_sum
+
+        self.table.setItem(0, 1, QTableWidgetItem(str(round(materials_sum * 0.15, 2))))
+
+        self.table.setItem(1, 1, QTableWidgetItem(str(round(works_sum, 2))))
+
+        self.table.setItem(2, 1, QTableWidgetItem(str(round(materials_sum, 2))))
+
+        self.table.setItem(3, 1, QTableWidgetItem(str(round(total_sum + materials_sum * 0.15, 2))))
 
     def clear_all_data(self):
         self.table.setItem(0, 1, QTableWidgetItem(""))
-
         self.table.setItem(1, 1, QTableWidgetItem(""))
-
         self.table.setItem(2, 1, QTableWidgetItem(""))
-
         self.table.setItem(3, 1, QTableWidgetItem(""))
 
 
@@ -664,7 +658,6 @@ class EstimateDataModel:
             # Обновляем позиции последующих работ
             for i in range(work.number, len(self.estimate[section_index].works)):
 
-                # if self.estimate[section_index].works[i].row > row:
                 self.estimate[section_index].works[i].number += 1
                 self.estimate[section_index].works[i].row += 1
 
@@ -718,8 +711,6 @@ class EstimateDataModel:
 
         self.estimate[section_index].height -= work_height
 
-        print("\n HEIGHT", work_height, "\n")
-
         for i in range(work_index + 1, len(self.estimate[section_index].works)):
             self.estimate[section_index].works[i].number -= 1
             self.estimate[section_index].works[i].row -= work_height
@@ -745,9 +736,6 @@ class EstimateDataModel:
         for i in range(len(self.estimate[section_index].works[work_index].materials)):
             if self.estimate[section_index].works[work_index].materials[i].row == row:
                 material_index = i
-                print("hello")
-
-        ###### добавить смещение материалов в той же работе # вроде есть
 
         for i in range(material_index + 1, len(self.estimate[section_index].works[work_index].materials)):
             self.estimate[section_index].works[work_index].materials[i].row -= 1
@@ -762,14 +750,12 @@ class EstimateDataModel:
                 for k in range(len(self.estimate[i].works[j].materials)):
                     self.estimate[i].works[j].materials[k].row -= 1
 
-        print("material_index", material_index)
-
         del self.estimate[section_index].works[work_index].materials[material_index]
 
         self.estimate[section_index].works[work_index].height -= 1
         self.estimate[section_index].height -= 1
 
-        # self.update_total_materials(work_index)
+        self.update_total_materials(section_index, work_index)
 
     def clear_all_data(self):
         self.estimate.clear()
@@ -780,17 +766,14 @@ class EstimateDataModel:
         """Обновляет модель на основе изменений в таблице"""
         try:
             section_index = self.find_section_by_row(row)
-            # print("section_index", section_index)
 
             if section_index is None:
                 print("section_index is None")
                 return
 
             work_idx = self.find_work_by_row(row, section_index)
-            # print("work_idx", work_idx)
 
             work_start_row = self.estimate[section_index].works[work_idx].row
-            # print("work_start_row", work_start_row)
 
             if work_idx is None:
                 print("work_idx is None")
@@ -811,10 +794,10 @@ class EstimateDataModel:
                     self.estimate[section_index].works[work_idx].unit = value if value else ""
                 elif col == 3:  # Количество
                     self.estimate[section_index].works[work_idx].quantity = round(float(value), 2) if value else 0.00
-                    # self.update_work_total(work_idx)
+                    self.update_work_total(section_index, work_idx)
                 elif col == 4:  # ФОТ на ед.
                     self.estimate[section_index].works[work_idx].labor_cost = round(float(value), 2) if value else 0.00
-                    # self.update_work_total(work_idx)
+                    self.update_work_total(section_index, work_idx)
 
             else:
                 material_idx = row - work_start_row
@@ -826,13 +809,13 @@ class EstimateDataModel:
                 elif col == 8:  # Количество материала
                     self.estimate[section_index].works[work_idx].materials[material_idx].quantity = round(float(value), 2) if value else 0.00
 
-                    # self.update_material_total(work_idx, material_idx)
-                    # self.update_total_materials(work_idx)
+                    self.update_material_total(section_index, work_idx, material_idx)
+                    self.update_total_materials(section_index, work_idx)
                 elif col == 9:  # Цена материала
                     self.estimate[section_index].works[work_idx].materials[material_idx].price = round(float(value), 2) if value else 0.00
 
-                    # self.update_material_total(work_idx, material_idx)
-                    # self.update_total_materials(work_idx)
+                    self.update_material_total(section_index, work_idx, material_idx)
+                    self.update_total_materials(section_index, work_idx)
         except Exception as e:
             print(f"Ошибка при обновлении модели из таблицы: {e}")
 
@@ -845,21 +828,19 @@ class EstimateDataModel:
     #
     #     return None, None
 
-    # def update_work_total(self, work_idx):
-    #     self.estimate[section_index]
-    #     .works[work_idx].total_work = round(self.estimate[section_index]
-    #     .works[work_idx].quantity * self.works[work_idx].labor_cost, 2)
+    def update_work_total(self, section_index, work_idx):
+        self.estimate[section_index].works[work_idx].total_work = round(self.estimate[section_index].works[work_idx].quantity * self.estimate[section_index].works[work_idx].labor_cost, 2)
 
-    # def update_material_total(self, work_idx, material_idx):
-    #     material = self.works[work_idx].materials[material_idx]
-    #     self.works[work_idx].materials[material_idx].total = round(material.quantity * material.price, 2)
+    def update_material_total(self, section_index, work_idx, material_idx):
+        material = self.estimate[section_index].works[work_idx].materials[material_idx]
+        self.estimate[section_index].works[work_idx].materials[material_idx].total = round(material.quantity * material.price, 2)
 
-    # def update_total_materials(self, work_idx):
-    #     s = 0.0
-    #     for i in range(len(self.works[work_idx].materials)):
-    #         s += self.works[work_idx].materials[i].total
-    #
-    #     self.works[work_idx].total_materials = round(s, 2)
-    #
-    # def total_sum_work_and_materials(self, work_idx):
-    #     return round(self.works[work_idx].total_materials + self.works[work_idx].total_work, 2)
+    def update_total_materials(self,section_index, work_idx):
+        s = 0.0
+        for i in range(len(self.estimate[section_index].works[work_idx].materials)):
+            s += self.estimate[section_index].works[work_idx].materials[i].total
+
+        self.estimate[section_index].works[work_idx].total_materials = round(s, 2)
+
+    def total_sum_work_and_materials(self, section_index, work_idx):
+        return round(self.estimate[section_index].works[work_idx].total_materials + self.estimate[section_index].works[work_idx].total_work, 2)
