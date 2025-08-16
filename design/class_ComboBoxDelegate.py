@@ -35,7 +35,7 @@ class DoubleSpinBox(QDoubleSpinBox):
         return f"{value:.{self.decimals()}f}".replace(',', '.')
 
 class ComboBoxDelegate(QStyledItemDelegate):
-    def __init__(self, table_widget, supabase, main_window):
+    def __init__(self, table_widget, supabase, main_window, model):
         super().__init__(table_widget)
         self.supabase = supabase
         self.table = table_widget
@@ -49,6 +49,8 @@ class ComboBoxDelegate(QStyledItemDelegate):
         self.sections_list = None
         self.main_list = None
         self.sub_list = None
+        self.section_id = None
+        self.model = model
 
     def commitAndClose(self, editor):
         """Сохраняет данные и закрывает редактор"""
@@ -58,6 +60,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         self.current_row = index.row()
         self.current_col = index.column()
+
+        section_index = self.model.find_section_by_row(self.current_row)
+        section_name = self.model.estimate[section_index].name
+        self.section_id = getters.get_section_by_name(self.supabase, section_name)
 
         if self.table.columnSpan(index.row(), index.column()) > 10:
             editor = QWidget(parent, Qt.WindowType.Popup)
@@ -200,7 +206,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
             search_text = text
         elif isinstance(text, QListWidgetItem):
             search_text = text.text()
-        print({search_text})
         # Вызываем обновление только если есть текст для поиска
 
         if search_text:
@@ -310,7 +315,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
             if self.table.columnSpan(self.current_row, self.current_col) > 10:
                 sections = self.supabase.table("sections").select("*").execute().data
                 self.sections_list.clear()
-                print(*[section['name'] for section in sections])
 
                 for section in sections:
                     item = QListWidgetItem(section['name'])
@@ -321,10 +325,18 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
                 return
 
-            categories = self.supabase.table(f"{category_type}_categories").select('*').execute().data
-            self.data = self.supabase.table(f"{category_type}").select('*').execute().data
             self.main_list.clear()
             self.sub_list.clear()
+
+            if category_type == "materials":
+                categories = self.supabase.table(f"{category_type}_categories").select('*').execute().data
+
+            else:
+                categories = getters.get_categories_by_section_id(self.supabase, self.section_id)
+                if not categories:
+                    categories = self.supabase.table(f"{category_type}_categories").select('*').execute().data
+
+            self.data = self.supabase.table(f"{category_type}").select('*').execute().data
             all_categories_item = QListWidgetItem("Все категории")
             all_categories_item.setData(Qt.ItemDataRole.UserRole, 0)
             self.main_list.addItem(all_categories_item)

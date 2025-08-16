@@ -32,7 +32,7 @@ class EstimateTableManager:
 
     def setup_delegates(self):
         """Устанавливает делегаты, кем бы они ни были"""
-        delegate = ComboBoxDelegate(self.table, self.supabase, self.page_estimate)
+        delegate = ComboBoxDelegate(self.table, self.supabase, self.page_estimate, self.model)
         self.table.setItemDelegate(delegate)
 
     def add_row_section(self):
@@ -254,12 +254,13 @@ class EstimateTableManager:
             try:
                 for row in range(top_left.row(), bottom_right.row() + 1):
                     section_index = self.model.find_section_by_row(row)
-                    if self.model.estimate[section_index].row != row:
-                        for col in range(top_left.column(), bottom_right.column() + 1):
-                            self.model.update_model_from_table(row, col)
+                    for col in range(top_left.column(), bottom_right.column() + 1):
+                        self.model.update_model_from_table(row, col)
+                        if self.model.estimate[section_index].row != row:
                             self.view.update_table_from_model(row, col)
-                            self.view_results.update_result_table(row)
-                            self.table.resizeRowToContents(row)
+                            self.view_results.update_result_table()
+
+                        self.table.resizeRowToContents(row)
 
             except Exception as e:
                 print(f"Ошибка при обновлении данных: {e}")
@@ -586,7 +587,7 @@ class TableResultsViewManager:
             width = int(table_width * percent)
             self.table.setColumnWidth(col, width)
 
-    def update_result_table(self, row):
+    def update_result_table(self):
         works_sum = 0
         materials_sum = 0
 
@@ -773,6 +774,16 @@ class EstimateDataModel:
                 print("section_index is None")
                 return
 
+            item = self.table.item(row, col)
+            if not item:
+                return
+
+            value = item.text()
+
+            if self.estimate[section_index].row == row:
+                self.estimate[section_index].name = value if value else ""
+                return
+
             work_idx = self.find_work_by_row(row, section_index)
 
             work_start_row = self.estimate[section_index].works[work_idx].row
@@ -781,17 +792,12 @@ class EstimateDataModel:
                 print("work_idx is None")
                 return
 
-            item = self.table.item(row, col)
-            if not item:
-                return
-
-            value = item.text()
-
             # print("value", value)
 
             if col <= 5 and row == work_start_row:
                 if col == 1:  # Наименование работы
                     self.estimate[section_index].works[work_idx].name = value if value else ""
+                    print(self.estimate[section_index].works[work_idx].name)
                 elif col == 2:  # Ед. изм.
                     self.estimate[section_index].works[work_idx].unit = value if value else ""
                 elif col == 3:  # Количество
