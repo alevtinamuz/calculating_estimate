@@ -221,6 +221,14 @@ def clear_table(supabase, name_of_table: str):
     .execute()
   )
   
+def clear_relations_table(supabase, name_of_table: str):
+  repsonse = (
+    supabase.table(name_of_table)
+    .delete()
+    .neq('section_id', '00000000-0000-0000-0000-000000000000')
+    .execute()
+  )
+  
 def upsert_work(supabase, category_id, name, price, unit, keywords):
     """Обновляет или создает работу (без указания ID)"""
     supabase.table('works').upsert({
@@ -263,6 +271,22 @@ def batch_insert_works_fast(supabase, items):
         'keywords': item['keywords']
     } for item in items]
     supabase.table('works').insert(data, returning='minimal').execute()
+    
+def batch_insert_sections_fast(supabase, items):
+    """Быстрая пакетная вставка разделов"""
+    data = [{
+        'id': item['id'],
+        'name': item['name']
+    } for item in items]
+    supabase.table('sections').insert(data, returning='minimal').execute()
+    
+def batch_insert_relations_sections_fast(supabase, items):
+    """Быстрая пакетная вставка зависимостей разделов с категориями работ"""
+    data = [{
+        'section_id': item['section_id'],
+        'category_id': item['category_id']
+    } for item in items]
+    supabase.table('section_work_category_relations').insert(data, returning='minimal').execute()
 
 def batch_insert_materials_fast(supabase, items):
     """Быстрая пакетная вставка материалов"""
