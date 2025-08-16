@@ -336,7 +336,22 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 if not categories:
                     categories = self.supabase.table(f"{category_type}_categories").select('*').execute().data
 
-            self.data = self.supabase.table(f"{category_type}").select('*').execute().data
+            # Получаем все работы
+            all_works = self.supabase.table(f"{category_type}").select('*').execute().data
+
+            # Если есть section_id и это не материалы, фильтруем работы по категориям раздела
+            if category_type == "works" and self.section_id:
+                # Получаем ID категорий, связанных с разделом
+                section_categories = getters.get_categories_by_section_id(self.supabase, self.section_id)
+                section_category_ids = [cat['id'] for cat in section_categories]
+
+                # Фильтруем работы - оставляем только те, которые принадлежат категориям раздела
+                self.data = [work for work in all_works
+                             if work.get('category_id') in section_category_ids]
+            else:
+                self.data = all_works
+
+            # self.data = self.supabase.table(f"{category_type}").select('*').execute().data
             all_categories_item = QListWidgetItem("Все категории")
             all_categories_item.setData(Qt.ItemDataRole.UserRole, 0)
             self.main_list.addItem(all_categories_item)
@@ -354,7 +369,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 entity = QListWidgetItem(item['name'])
                 entity.setData(Qt.ItemDataRole.UserRole, item['id'])
                 self.sub_list.addItem(entity)
-
 
             self.main_list.setCurrentRow(0)
 
