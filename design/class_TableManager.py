@@ -780,14 +780,14 @@ class EstimateDataModel:
         """Обновляет модель на основе изменений в таблице"""
         try:
             section_index = self.find_section_by_row(row)
-            # print("section_index", section_index)
+            print("section_index", section_index)
 
             if section_index is None:
                 print("section_index is None")
                 return
 
             work_idx = self.find_work_by_row(row, section_index)
-            # print("work_idx", work_idx)
+            print("work_idx", work_idx)
 
             work_start_row = self.estimate[section_index].works[work_idx].row
             # print("work_start_row", work_start_row)

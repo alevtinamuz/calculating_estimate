@@ -1,9 +1,10 @@
-from PyQt6.QtCore import Qt, QPoint, QStringListModel, QLocale
+from PyQt6.QtCore import Qt, QPoint, QStringListModel, QLocale, QThread, pyqtSignal
 from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit, \
-    QListWidget, QListWidgetItem, QDoubleSpinBox
-from PyQt6.QtGui import QDoubleValidator, QValidator, QCursor
+    QListWidget, QListWidgetItem, QDoubleSpinBox, QLabel
+from PyQt6.QtGui import QDoubleValidator, QValidator, QCursor, QMovie
 
 import getters
+import os
 from design.styles import DROPDOWN_DELEGATE_STYLE, SPIN_BOX_STYLE
 
 
@@ -34,6 +35,23 @@ class DoubleSpinBox(QDoubleSpinBox):
         # return self.locale().toString(value, 'f', self.decimals())
         return f"{value:.{self.decimals()}f}".replace(',', '.')
 
+class DataLoaderThread(QThread):
+    data_loaded = pyqtSignal(object)
+    
+    def __init__(self, load_func, *args):
+        super().__init__()
+        self.load_func = load_func
+        self.args = args
+    
+    def run(self):
+        try:
+            result = self.load_func(*self.args)
+            self.data_loaded.emit(result)
+        except Exception as e:
+            print(f"Error in loader thread: {e}")
+            self.data_loaded.emit(None)
+
+
 class ComboBoxDelegate(QStyledItemDelegate):
     def __init__(self, table_widget, supabase, main_window):
         super().__init__(table_widget)
@@ -58,6 +76,12 @@ class ComboBoxDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         self.current_row = index.row()
         self.current_col = index.column()
+        
+        gif_path = os.path.join(os.path.dirname(__file__), "spinner.gif")
+        # self.loading_label = QLabel(parent)
+        # self.loading_movie = QMovie(gif_path)
+        # self.loading_label.setMovie(self.loading_movie)
+        # self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         if self.table.columnSpan(index.row(), index.column()) > 10:
             editor = QWidget(parent, Qt.WindowType.Popup)
@@ -66,21 +90,47 @@ class ComboBoxDelegate(QStyledItemDelegate):
             editor.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
 
             layout = QVBoxLayout(editor)
+            layout.setContentsMargins(2, 2, 2, 2)
+            
+            # layout.addWidget(self.loading_label)
+            # self.loading_movie.start()
+            editor.sections_list = QListWidget(editor)
+            layout.addWidget(editor.sections_list)
+            
+            editor.loading_label = QLabel(editor.sections_list)
+            editor.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            editor.loading_movie = QMovie(gif_path)
+            editor.loading_label.setMovie(editor.loading_movie)
+            
+            # Растягиваем на весь список
+            def update_loading_geometry():
+                editor.loading_label.setGeometry(
+                    0, 0, 
+                    editor.sections_list.width(), 
+                    editor.sections_list.height()
+                )
+            
+            editor.sections_list.showEvent = lambda e: update_loading_geometry()
+            editor.loading_movie.start()
+            
+            # self.sections_list.hide()
+            
+            self.sections_list = editor.sections_list
+            
+            self.loader_worker = DataLoaderThread(self.load_initial_data)
+            self.loader_worker.data_loaded.connect(lambda: self.on_data_loaded(editor, index))
+            self.loader_worker.start()
+            
+            # self.load_initial_data()
 
-            self.sections_list = QListWidget(editor)
-            layout.addWidget(self.sections_list)
+            # current_value = index.data(Qt.ItemDataRole.DisplayRole)
 
-            self.load_initial_data()
+            # if current_value:
+            #     self.set_current_value_section(current_value)
 
-            current_value = index.data(Qt.ItemDataRole.DisplayRole)
-
-            if current_value:
-                self.set_current_value_section(current_value)
-
-            self.sections_list.itemDoubleClicked.connect(
-                lambda: self.commitAndClose(editor)  # Новый метод
-            )
-
+            # self.sections_list.itemDoubleClicked.connect(
+            #     lambda: self.commitAndClose(editor)  # Новый метод
+            # )
             return editor
 
         if index.column() in [1, 6]:
@@ -94,46 +144,75 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
                 layout = QVBoxLayout(editor)
                 layout.setContentsMargins(2, 2, 2, 2)
+                
+                # layout.addWidget(self.loading_label)
+                # self.loading_movie.start()
 
-                self.search_line_edit = QLineEdit(editor)
-                self.search_line_edit.setPlaceholderText("Поиск...")
-                self.search_line_edit.textChanged.connect(self.filter_items)
-                layout.addWidget(self.search_line_edit)
+                editor.search_line_edit = QLineEdit(editor)
+                editor.search_line_edit.setPlaceholderText("Поиск...")
+                editor.search_line_edit.textChanged.connect(self.filter_items)
+                layout.addWidget(editor.search_line_edit)
 
                 combo_container = QWidget(editor)
                 combo_layout = QHBoxLayout(combo_container)
                 combo_layout.setContentsMargins(0, 0, 0, 0)
 
-                # Ваши комбобоксы
-                self.main_list = QListWidget(combo_container)
-                self.sub_list = QListWidget(combo_container)
-
-                self.main_list.setWordWrap(True)  # Включаем перенос текста
-                self.sub_list.setWordWrap(True)
-
-                self.main_list.setObjectName("MainList")
-                self.sub_list.setObjectName("SubList")
-
-                self.main_list.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
-                self.sub_list.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
-
-                self.main_list.itemClicked.connect(self.update_sub_list)
-
-                combo_layout.addWidget(self.main_list)
-                combo_layout.addWidget(self.sub_list)
-                layout.addWidget(combo_container)
-
-                # Заполнение данными
-                self.load_initial_data(index.column())
-
-                if current_value:
-                    self.set_current_value(current_value)
-
-                self.current_editor = editor
+                # combo_layout.addWidget(self.loading_label)
+                # self.loading_movie.start()
                 
-                self.sub_list.itemDoubleClicked.connect(
-                    lambda: self.commitAndClose(editor)  # Новый метод
-                )
+                # Ваши комбобоксы
+                editor.main_list = QListWidget(combo_container)
+                editor.sub_list = QListWidget(combo_container)
+
+                editor.main_list.setWordWrap(True)  # Включаем перенос текста
+                editor.sub_list.setWordWrap(True)
+
+                editor.main_list.setObjectName("MainList")
+                editor.sub_list.setObjectName("SubList")
+
+                editor.main_list.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
+                editor.sub_list.setStyleSheet(DROPDOWN_DELEGATE_STYLE)
+
+                editor.main_list.itemClicked.connect(self.update_sub_list)
+                
+                editor.main_loading_movie = QMovie(gif_path)
+                editor.main_loading_label = QLabel(editor.main_list)
+                editor.main_loading_label.setMovie(editor.main_loading_movie)
+                editor.main_loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                editor.main_loading_label.setGeometry(editor.main_list.rect())
+                
+                editor.sub_loading_movie = QMovie(gif_path)
+                editor.sub_loading_label = QLabel(editor.sub_list)
+                editor.sub_loading_label.setMovie(editor.sub_loading_movie)
+                editor.sub_loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                editor.sub_loading_label.setGeometry(editor.sub_list.rect())
+                
+                editor.main_loading_movie.start()
+                editor.sub_loading_movie.start()
+
+                combo_layout.addWidget(editor.main_list)
+                combo_layout.addWidget(editor.sub_list)
+                layout.addWidget(combo_container)
+                
+                self.main_list = editor.main_list
+                self.sub_list = editor.sub_list
+                self.search_line_edit = editor.search_line_edit
+                
+                self.loader_worker = DataLoaderThread(self.load_initial_data, index.column())
+                self.loader_worker.data_loaded.connect(lambda: self.on_column_data_loaded(editor, current_value))
+                self.loader_worker.start()
+
+                # # Заполнение данными
+                # self.load_initial_data(index.column())
+
+                # if current_value:
+                #     self.set_current_value(current_value)
+
+                # self.current_editor = editor
+                
+                # self.sub_list.itemDoubleClicked.connect(
+                #     lambda: self.commitAndClose(editor)  # Новый метод
+                # )
 
                 return editor
 
@@ -153,6 +232,73 @@ class ComboBoxDelegate(QStyledItemDelegate):
             editor.setStyleSheet(SPIN_BOX_STYLE)
 
             return editor
+        
+    def on_data_loaded(self, editor, index):
+        """Handle data loaded for the sections list"""
+        try:
+            if not editor or not hasattr(editor, 'sections_list'):
+                return
+                
+            if hasattr(editor, 'loading_movie'):
+                editor.loading_movie.stop()
+            if hasattr(editor, 'loading_label'):
+                editor.loading_label.hide()
+            
+            editor.sections_list.show()
+            
+            if index.data(Qt.ItemDataRole.DisplayRole):
+                self.set_current_value_section(index.data(Qt.ItemDataRole.DisplayRole))
+            
+            editor.sections_list.itemDoubleClicked.connect(lambda: self.commitAndClose(editor))
+            
+            # Обновляем геометрию после загрузки данных
+            self.updateEditorGeometry(editor, None, index)
+            
+        except Exception as e:
+            print(f"Error in on_data_loaded: {e}")
+
+    def on_column_data_loaded(self, editor, current_value):
+        """Handle data loaded for column-specific lists"""
+        try:
+            if not editor:
+                return
+                
+            if hasattr(editor, 'main_loading_movie'):
+                editor.main_loading_movie.stop()
+            if hasattr(editor, 'main_loading_label'):
+                editor.main_loading_label.hide()
+            if hasattr(editor, 'sub_loading_movie'):
+                editor.sub_loading_movie.stop()
+            if hasattr(editor, 'sub_loading_label'):
+                editor.sub_loading_label.hide()
+            
+            if hasattr(editor, 'search_line_edit'):
+                editor.search_line_edit.show()
+            if hasattr(editor, 'main_list'):
+                editor.main_list.show()
+            if hasattr(editor, 'sub_list'):
+                editor.sub_list.show()
+                
+                if current_value:
+                    self.set_current_value(current_value)
+                
+                editor.sub_list.itemDoubleClicked.connect(lambda: self.commitAndClose(editor))
+                
+                # Убираем принудительное изменение размеров для main_list и sub_list
+                editor.adjustSize()  # Просто делаем автоподбор размеров
+                
+        except Exception as e:
+            print(f"Error in on_column_data_loaded: {e}")
+
+    def destroyEditor(self, editor, index):
+        try:
+            if hasattr(self, 'loader_worker') and self.loader_worker.isRunning():
+                self.loader_worker.quit()
+                self.loader_worker.wait()
+        except Exception as e:
+            print(f"Error in destroyEditor: {e}")
+        finally:
+            super().destroyEditor(editor, index)
 
     def set_current_value_section(self, current_value):
         """Устанавливает текущее значение в комбобоксы"""
@@ -210,62 +356,42 @@ class ComboBoxDelegate(QStyledItemDelegate):
         """Позиционирование редактора с учетом границ экрана"""
 
         if self.table.columnSpan(index.row(), index.column()) > 10:
+            if not hasattr(editor, 'sections_list'):
+                return
+                
             # Получаем геометрию ячейки
-            rect = option.rect
+            rect = option.rect if option else editor.geometry()
             viewport = editor.parent()
             cursor_pos = QCursor.pos()
             global_pos = viewport.mapToGlobal(rect.bottomLeft())
             screen = viewport.screen().availableGeometry()
 
-            # Рассчитываем размеры списка
-            item_height = self.sections_list.sizeHintForRow(0)
-            item_count = self.sections_list.count()
-            visible_items = min(7, item_count)
-            content_height = item_height * visible_items + 15
-
-            # Настраиваем список ДО установки размеров
-            self.sections_list.setMinimumHeight(content_height)
-            self.sections_list.setMaximumHeight(content_height)
-
-            # Ширина редактора (автоподбор)
-            editor_width = max(
-                self.sections_list.sizeHint().width() + 20,  # Ширина содержимого + отступы
-                250
-            )
-
-            # Общая высота редактора (список + отступы)
-            editor_height = content_height + 15
+            # Рассчитываем размеры на основе содержимого
+            width = editor.sections_list.sizeHintForColumn(0) + 30  # + отступы
+            item_height = editor.sections_list.sizeHintForRow(0)
+            visible_items = min(10, editor.sections_list.count())
+            height = item_height * visible_items + 10
+            
+            # Ограничиваем минимальные/максимальные размеры
+            width = max(250, min(width, 500))
+            height = max(200, min(height, 600))
 
             # Позиционирование
-            editor_x = max(screen.left(), cursor_pos.x() - editor_width // 2)
-            editor_x = min(editor_x, screen.right() - editor_width)
+            editor_x = max(screen.left(), cursor_pos.x() - width // 2)
+            editor_x = min(editor_x, screen.right() - width)
 
-            if global_pos.y() + editor_height > screen.bottom():
-                editor_y = global_pos.y() - editor_height - rect.height()
+            if global_pos.y() + height > screen.bottom():
+                editor_y = global_pos.y() - height - rect.height()
             else:
                 editor_y = global_pos.y()
+            
             if editor_y < screen.top():
                 editor_y = screen.top()
 
-            # Устанавливаем политику скролла
-            scroll_policy = (Qt.ScrollBarPolicy.ScrollBarAsNeeded if item_count > 7
-                             else Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            self.sections_list.setVerticalScrollBarPolicy(scroll_policy)
-
-            # 1. Сначала устанавливаем размеры списка
-            self.sections_list.setFixedHeight(content_height)
-            self.sections_list.setMinimumWidth(editor_width - 20)  # - отступы
-
-            # 2. Затем устанавливаем размеры главного редактора
-            editor.setFixedSize(editor_width, editor_height)
-
-            # 3. Позиционируем
+            # Устанавливаем размеры и позицию
+            editor.setFixedSize(width, height)
             editor.move(editor_x, editor_y)
-
-            # 4. Обновляем layout (если используется)
-            if editor.layout():
-                editor.layout().activate()
-
+            editor.sections_list.setFixedSize(width - 10, height - 10)
         elif index.column() in [1, 6]:  # Только для нужных колонок
             try:
                 # Получаем геометрию ячейки
@@ -310,7 +436,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
             if self.table.columnSpan(self.current_row, self.current_col) > 10:
                 sections = self.supabase.table("sections").select("*").execute().data
                 self.sections_list.clear()
-                print(*[section['name'] for section in sections])
 
                 for section in sections:
                     item = QListWidgetItem(section['name'])
@@ -320,7 +445,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 self.sections_list.setCurrentRow(0)
 
                 return
-
+            
             categories = self.supabase.table(f"{category_type}_categories").select('*').execute().data
             self.data = self.supabase.table(f"{category_type}").select('*').execute().data
             self.main_list.clear()
