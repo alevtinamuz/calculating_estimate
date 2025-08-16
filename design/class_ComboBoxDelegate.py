@@ -1,4 +1,4 @@
-from PyQt6.QtCore import Qt, QPoint, QStringListModel, QLocale
+from PyQt6.QtCore import Qt, QPoint, QStringListModel, QLocale, QTimer
 from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit, \
     QListWidget, QListWidgetItem, QDoubleSpinBox
 from PyQt6.QtGui import QDoubleValidator, QValidator, QCursor
@@ -134,7 +134,9 @@ class ComboBoxDelegate(QStyledItemDelegate):
                     self.set_current_value(current_value)
 
                 self.current_editor = editor
-                
+
+                QTimer.singleShot(200, lambda: self.search_line_edit.setFocus())
+
                 self.sub_list.itemDoubleClicked.connect(
                     lambda: self.commitAndClose(editor)  # Новый метод
                 )
