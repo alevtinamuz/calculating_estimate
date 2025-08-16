@@ -253,11 +253,13 @@ class EstimateTableManager:
         if not roles or Qt.ItemDataRole.EditRole in roles:
             try:
                 for row in range(top_left.row(), bottom_right.row() + 1):
-                    for col in range(top_left.column(), bottom_right.column() + 1):
-                        self.model.update_model_from_table(row, col)
-                        self.view.update_table_from_model(row, col)
-                        self.view_results.update_result_table(row)
-                        self.table.resizeRowToContents(row)
+                    section_index = self.model.find_section_by_row(row)
+                    if self.model.estimate[section_index].row != row:
+                        for col in range(top_left.column(), bottom_right.column() + 1):
+                            self.model.update_model_from_table(row, col)
+                            self.view.update_table_from_model(row, col)
+                            self.view_results.update_result_table(row)
+                            self.table.resizeRowToContents(row)
 
             except Exception as e:
                 print(f"Ошибка при обновлении данных: {e}")
