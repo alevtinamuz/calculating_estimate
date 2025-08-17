@@ -65,12 +65,8 @@ class EstimateTableManager:
 
             self.model.add_work(selected_row + 1)
             self.view.add_work_row(selected_row)
-            # self.view.fill_work_row(selected_row + 1)
 
             self.view.renumber_rows()
-
-            # Обновляем объединения
-            # self.view.update_all_spans()
 
         except Exception as e:
             print(f"Ошибка при добавлении работы: {e}")
@@ -121,6 +117,10 @@ class EstimateTableManager:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбран ни один раздел для удаления")
                 return
 
+            if section_index == 0 and len(self.model.estimate) == 1:
+                QMessageBox.warning(self.page_estimate, "Предупреждение", "Нельзя удалить единственный раздел")
+                return
+
             # Подтверждение удаления
             reply = QMessageBox.question(
                 self.page_estimate,
@@ -160,13 +160,9 @@ class EstimateTableManager:
             section_index = self.model.find_section_by_row(selected_row)
             work_idx = self.model.find_work_by_row(selected_row, section_index)
 
-            # work_idx, work_start_row = self.view.find_selected_work()
-
             if work_idx is None:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для удаления")
                 return
-
-            # section_index = self.model.find_section_by_row(work_start_row)
 
             # Подтверждение удаления
             reply = QMessageBox.question(
@@ -184,7 +180,6 @@ class EstimateTableManager:
             self.view.delete_selected_work(selected_row)
             self.model.delete_work(selected_row)
 
-            # self.view.update_all_spans()
             self.view.renumber_rows()
 
         except Exception as e:
@@ -247,7 +242,6 @@ class EstimateTableManager:
 
             self.view.delete_selected_material(work.row, selected_row, is_first_material)
             self.model.delete_material(selected_row)
-            # self.view.update_spans_for_work(work_idx, work_start_row)
 
             self.view.update_table_from_model(work.row, 11)
             self.view.update_table_from_model(work.row, 12)
@@ -383,14 +377,11 @@ class TableViewManager:
         if self.model.estimate[section_index].row != row:
             work_index = self.model.find_work_by_row(row, section_index)
             prev_work = self.model.estimate[section_index].works[work_index]
-            # print(prev_work.name, "prev_name table")
-            # print()
+
             insert_row = prev_work.row + prev_work.height
-            # print(insert_row, "insert_row table")
             self.table.insertRow(insert_row)
             self.table.selectRow(insert_row)
         else:
-            # print("hello")
             self.table.insertRow(row + 1)
             self.table.selectRow(row + 1)
 
@@ -411,31 +402,6 @@ class TableViewManager:
         self.table.setRowCount(0)
         self.add_section_row()
         self.table.selectRow(0)
-
-    def update_all_spans(self):
-        """Обновляем ВСЕ объединения ячеек"""
-        # Сначала сбрасываем все объединения
-        for row in range(self.table.rowCount()):
-            for col in range(6):  # Объединяем только первые 6 колонок
-                self.table.setSpan(row, col, 1, 1)
-
-            self.table.setSpan(row, 11, 1, 1)
-            self.table.setSpan(row, 12, 1, 1)
-
-        # Затем устанавливаем новые объединения
-        current_row = 0
-        section_index = self.model.find_section_by_row(current_row)
-
-        for work in self.model.estimate[section_index].works:
-            span_height = work.height
-
-            if span_height > 0:  # Объединяем только если есть материалы
-                for col in range(6):
-                    self.table.setSpan(current_row, col, span_height, 1)
-
-                self.table.setSpan(current_row, 11, span_height, 1)
-                self.table.setSpan(current_row, 12, span_height, 1)
-            current_row += span_height
 
     def update_spans_for_work(self, row):
         """Обновляет объединения ячеек для конкретной работы"""
@@ -714,8 +680,7 @@ class EstimateDataModel:
 
                 work_index = self.find_work_by_row(row - 1, section_index)
                 prev_work = self.estimate[section_index].works[work_index]
-                # print(prev_work.name, "prev_name")
-                # print()
+
                 insert_row = prev_work.row + prev_work.height
                 num = prev_work.number + 1
 
@@ -724,7 +689,6 @@ class EstimateDataModel:
             work.number = num
 
             # Вставляем работу в указанную позицию
-            # print(work.number - 1, "work.number - 1")
             self.estimate[section_index].works.insert(work.number - 1, work)
 
             self.estimate[section_index].height += 1
@@ -914,7 +878,8 @@ class EstimateDataModel:
 
     def update_material_total(self, section_index, work_idx, material_idx):
         material = self.estimate[section_index].works[work_idx].materials[material_idx]
-        self.estimate[section_index].works[work_idx].materials[material_idx].total = round(material.quantity * material.price, 2)
+        self.estimate[section_index].works[work_idx].materials[material_idx].total = round(material.quantity
+                                                                                           * material.price, 2)
 
     def update_total_materials(self,section_index, work_idx):
         s = 0.0
@@ -924,4 +889,5 @@ class EstimateDataModel:
         self.estimate[section_index].works[work_idx].total_materials = round(s, 2)
 
     def total_sum_work_and_materials(self, section_index, work_idx):
-        return round(self.estimate[section_index].works[work_idx].total_materials + self.estimate[section_index].works[work_idx].total_work, 2)
+        return round(self.estimate[section_index].works[work_idx].total_materials
+                     + self.estimate[section_index].works[work_idx].total_work, 2)
