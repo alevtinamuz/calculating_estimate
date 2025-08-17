@@ -458,7 +458,7 @@ class TableViewManager:
                     new_item = QTableWidgetItem(item.text())
                     new_item.setFlags(item.flags())
                     new_item.setData(Qt.ItemDataRole.UserRole, item.data(Qt.ItemDataRole.UserRole))
-                    new_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    # new_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(work_start_row, col, new_item)
 
             # Удаляем строку следующего материала
