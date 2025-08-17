@@ -36,6 +36,7 @@ class DoubleSpinBox(QDoubleSpinBox):
 class DataLoaderThread(QThread):
     data_loaded = pyqtSignal(object)
 
+
     def __init__(self, load_func, *args):
         super().__init__()
         self.load_func = load_func
@@ -578,7 +579,8 @@ class ComboBoxDelegate(QStyledItemDelegate):
                     model.setData(unit_index, entity['unit'])
                     
                     quantity_index = model.index(index.row(), 3)
-                    model.setData(quantity_index, 1.0)
+                    current_quantity = self.table.item(index.row(), 3).text() if self.table.item(index.row(), 3) else 1.0
+                    model.setData(quantity_index, float(current_quantity))
 
                 elif index.column() == 6:  # Обработка материала
 
@@ -598,7 +600,8 @@ class ComboBoxDelegate(QStyledItemDelegate):
                         model.setData(unit_index, entity['unit'])
                         
                         quantity_index = model.index(index.row(), 8)
-                        model.setData(quantity_index, 1.0)
+                        current_quantity = self.table.item(index.row(), 8).text() if self.table.item(index.row(), 8) else 1.0
+                        model.setData(quantity_index, float(current_quantity))
 
             except IndexError as ie:
                 print(f"Ошибка индекса при обновлении данных: {ie}")
