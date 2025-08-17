@@ -1,11 +1,11 @@
 from PyQt6.QtCore import Qt, QPoint, QRectF, QMarginsF
-from PyQt6.QtGui import QFont, QPainter, QPageLayout
+from PyQt6.QtGui import QFont, QPainter, QPageLayout, QTextOption
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtWidgets import QMessageBox, QFileDialog, QTableWidgetItem, QTableWidget, QHeaderView
 
 from design.class_ComboBoxDelegate import ComboBoxDelegate
-from design.classes import MaterialItem, WorkItem
-from design.styles import DATA_TABLE_STYLE
+from design.classes import MaterialItem, WorkItem, SectionItem
+from design.styles import DATA_TABLE_STYLE, RESULT_TABLE_STYLE, ESTIMATE_TABLE_STYLE
 
 
 class EstimateTableManager:
@@ -32,8 +32,27 @@ class EstimateTableManager:
 
     def setup_delegates(self):
         """Устанавливает делегаты, кем бы они ни были"""
-        delegate = ComboBoxDelegate(self.table, self.supabase, self.page_estimate)
+        delegate = ComboBoxDelegate(self.table, self.supabase, self.page_estimate, self.model)
         self.table.setItemDelegate(delegate)
+
+    def add_row_section(self):
+        """Добавляет новую работу с автоматическим объединением"""
+        try:
+            self.table.setUpdatesEnabled(False)
+
+            insert_pos = self.table.rowCount()
+
+            self.model.add_section()
+
+            self.view.add_section_row()
+
+            self.table.selectRow(insert_pos)
+
+        except Exception as e:
+            print(f"Ошибка при добавлении раздела: {e}")
+            raise
+        finally:
+            self.table.setUpdatesEnabled(True)
 
     def add_row_work(self):
         """Добавляет новую работу с автоматическим объединением"""
@@ -41,32 +60,13 @@ class EstimateTableManager:
             self.table.setUpdatesEnabled(False)
 
             selected_ranges = self.table.selectedRanges()
-            if not selected_ranges:
-                insert_pos = self.table.rowCount()
-                work_idx = len(self.model.works)
-            else:
-                work_idx, work_start_row = self.view.find_selected_work()
 
-                if work_idx is None:
-                    insert_pos = self.table.rowCount()
-                    work_idx = len(self.model.works)
-                else:
-                    insert_pos = work_start_row + self.model.works[work_idx].height
-                    work_idx += 1
+            selected_row = selected_ranges[0].topRow()
 
-            self.model.add_work_at_position(work_idx, insert_pos)
+            self.model.add_work(selected_row + 1)
+            self.view.add_work_row(selected_row)
 
-            self.table.insertRow(insert_pos)
-            self.view.fill_work_row(insert_pos, work_idx + 1)
-
-            for i in range(work_idx + 1, len(self.model.works)):
-                self.model.works[i].number += 1
-                if self.table.item(self.model.works[i].row, 0):
-                    self.table.item(self.model.works[i].row, 0).setText(str(self.model.works[i].number))
-
-            # Обновляем объединения
-            self.view.update_all_spans()
-            self.table.selectRow(insert_pos)
+            self.view.renumber_rows()
 
         except Exception as e:
             print(f"Ошибка при добавлении работы: {e}")
@@ -79,22 +79,69 @@ class EstimateTableManager:
         try:
             self.view.table.setUpdatesEnabled(False)
 
+            selected_ranges = self.table.selectedRanges()
+
+            selected_row = selected_ranges[0].topRow()
+
+            section_index = self.model.find_section_by_row(selected_row)
+
             # Если нет работ, добавляем новую
-            if not self.model.works:
+            if not self.model.estimate[section_index].works:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для добавления "
-                                                                          "материала")
+                                                                            "материала")
                 return
 
-            work_idx, work_start_row = self.view.find_selected_work()
+            self.model.add_material(selected_row)
+            self.view.add_material_row(selected_row)
 
-            self.model.add_material(work_idx)
-            self.view.add_material_row(work_idx, work_start_row)
+            self.view.update_spans_for_work(selected_row)
 
-            self.view.update_spans_for_work(work_idx, work_start_row)
+            self.view.renumber_rows()
 
         except Exception as e:
             print(f"Ошибка при добавлении материала: {e}")
-            # Откатываем изменения в модели при ошибке
+            raise
+        finally:
+            self.view.table.setUpdatesEnabled(True)
+
+    def delete_selected_section(self):
+        """Удаляет выбранный раздел, все его работы и материалы"""
+        try:
+            selected_ranges = self.table.selectedRanges()
+
+            selected_row = selected_ranges[0].topRow()
+
+            section_index = self.model.find_section_by_row(selected_row)
+
+            if section_index is None:
+                QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбран ни один раздел для удаления")
+                return
+
+            if section_index == 0 and len(self.model.estimate) == 1:
+                QMessageBox.warning(self.page_estimate, "Предупреждение", "Нельзя удалить единственный раздел")
+                return
+
+            # Подтверждение удаления
+            reply = QMessageBox.question(
+                self.page_estimate,
+                "Подтверждение",
+                f"Вы уверены, что хотите удалить раздел '{self.model.estimate[section_index].name}' и все его работы "
+                f"и материалы?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.No:
+                return
+
+            self.view.table.setUpdatesEnabled(False)
+
+            self.view.delete_selected_section(selected_row)
+            self.model.delete_section(selected_row)
+
+            self.view.renumber_rows()
+
+        except Exception as e:
+            print(f"Ошибка при удалении работы: {e}")
             raise
         finally:
             self.view.table.setUpdatesEnabled(True)
@@ -108,7 +155,10 @@ class EstimateTableManager:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для удаления")
                 return
 
-            work_idx, work_start_row = self.view.find_selected_work()
+            selected_row = selected_ranges[0].topRow()
+
+            section_index = self.model.find_section_by_row(selected_row)
+            work_idx = self.model.find_work_by_row(selected_row, section_index)
 
             if work_idx is None:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбрана ни одна работа для удаления")
@@ -118,7 +168,7 @@ class EstimateTableManager:
             reply = QMessageBox.question(
                 self.page_estimate,
                 "Подтверждение",
-                f"Вы уверены, что хотите удалить работу '{self.model.works[work_idx].name}' и все её материалы?",
+                f"Вы уверены, что хотите удалить работу '{self.model.estimate[section_index].works[work_idx].name}' и все её материалы?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
 
@@ -127,10 +177,9 @@ class EstimateTableManager:
 
             self.view.table.setUpdatesEnabled(False)
 
-            self.view.delete_selected_work(work_idx, work_start_row)
-            self.model.delete_work(work_idx)
+            self.view.delete_selected_work(selected_row)
+            self.model.delete_work(selected_row)
 
-            self.view.update_all_spans()
             self.view.renumber_rows()
 
         except Exception as e:
@@ -142,22 +191,27 @@ class EstimateTableManager:
     def delete_selected_material(self):
         """Удаляет выбранный материал"""
         try:
-            print('start delete')
             selected_ranges = self.view.table.selectedRanges()
             if not selected_ranges:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбран ни один материал для удаления")
                 return
 
             selected_row = selected_ranges[0].topRow()
-            work_idx, work_start_row = self.view.find_selected_work()
+
+            section_index = self.model.find_section_by_row(selected_row)
+
+            work_idx = self.model.find_work_by_row(selected_row, section_index)
+
+            work = self.model.estimate[section_index].works[work_idx]
 
             if work_idx is None:
                 QMessageBox.warning(self.page_estimate, "Предупреждение", "Не выбран ни один материал для удаления")
                 return
 
             # Определяем, выделена ли строка работы (первый материал)
-            is_first_material = selected_row == work_start_row
-            materials_count = self.model.works[work_idx].height
+            is_first_material = selected_row == work.row
+            section_index = self.model.find_section_by_row(work.row)
+            materials_count = self.model.estimate[section_index].works[work_idx].height
 
             # Если это первый и единственный материал
             if is_first_material and materials_count == 1:
@@ -166,7 +220,7 @@ class EstimateTableManager:
                 return
 
             # Определяем индекс материала
-            material_idx = selected_row - work_start_row - (0 if is_first_material else 1)
+            material_idx = selected_row - work.row - (0 if is_first_material else 1)
 
             # Проверяем, что индекс материала корректен
             if material_idx < 0 or material_idx >= materials_count:
@@ -186,15 +240,14 @@ class EstimateTableManager:
 
             self.view.table.setUpdatesEnabled(False)
 
-            self.view.delete_selected_material(work_start_row, selected_row, is_first_material)
-            self.model.delete_material(work_idx, material_idx)
-            self.view.update_spans_for_work(work_idx, work_start_row)
+            self.view.delete_selected_material(work.row, selected_row, is_first_material)
+            self.model.delete_material(selected_row)
 
-            self.view.update_table_from_model(work_start_row, 11)
-            self.view.update_table_from_model(work_start_row, 12)
+            self.view.update_table_from_model(work.row, 11)
+            self.view.update_table_from_model(work.row, 12)
             self.view_results.update_result_table()
 
-            print('end delete')
+            self.view.renumber_rows()
 
         except Exception as e:
             print(f"Ошибка при удалении материала: {e}")
@@ -233,11 +286,14 @@ class EstimateTableManager:
         if not roles or Qt.ItemDataRole.EditRole in roles:
             try:
                 for row in range(top_left.row(), bottom_right.row() + 1):
+                    section_index = self.model.find_section_by_row(row)
                     for col in range(top_left.column(), bottom_right.column() + 1):
                         self.model.update_model_from_table(row, col)
-                        self.view.update_table_from_model(row, col)
-                        self.view_results.update_result_table()
-                        print("handle_data_change")
+                        if self.model.estimate[section_index].row != row:
+                            self.view.update_table_from_model(row, col)
+                            self.view_results.update_result_table()
+
+                        self.table.resizeRowToContents(row)
 
             except Exception as e:
                 print(f"Ошибка при обновлении данных: {e}")
@@ -251,6 +307,10 @@ class TableViewManager:
 
         self.setup_table()
 
+        self.add_section_row()
+
+        self.table.selectRow(0)
+
     def set_model(self, model):
         self.model = model
 
@@ -258,11 +318,10 @@ class TableViewManager:
         """Настройка таблицы"""
         self.configure_table_appearance()
         self.setup_headers()
-        # self.adjust_column_widths()
 
     def configure_table_appearance(self):
         """Настраивает внешний вид таблицы"""
-        self.table.setStyleSheet(DATA_TABLE_STYLE)
+        self.table.setStyleSheet(ESTIMATE_TABLE_STYLE)
         self.table.setShowGrid(False)
         self.table.setEditTriggers(
             QTableWidget.EditTrigger.DoubleClicked |
@@ -270,6 +329,8 @@ class TableViewManager:
         )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+
+        self.table.setWordWrap(True)
 
     def setup_headers(self):
         """Устанавливает заголовки таблицы"""
@@ -280,113 +341,79 @@ class TableViewManager:
         ]
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
-        self.table.verticalHeader().setVisible(False)
 
-    def fill_work_row(self, row, number):
-        """Заполняет строку работы"""
-        # Номер работы
-        item = QTableWidgetItem(str(number))
-        item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-        item.setData(Qt.ItemDataRole.UserRole, "work_number")
-        self.table.setItem(row, 0, item)
+        self.table.verticalHeader().setStyleSheet("""
+            QHeaderView::section {
+                height: 0;
+                padding: 0;
+                width: 0;
+                border-right: 1px solid #E5E5E5;
+                background-color: #FFFFFF;
+            }
+        """)
 
-        # Наименование работы (редактируемое)
-        item = QTableWidgetItem("")
-        item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
-        # item.setData(Qt.ItemDataRole.UserRole, "work_name")
-        self.table.setItem(row, 1, item)
-
-        # Остальные ячейки работы
-        editable_cols = [2, 3, 4, 5]  # Ед. изм., К-во, ФОТ на ед., ФОТ всего
-        for col in editable_cols:
-            item = QTableWidgetItem("")
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
-            item.setData(Qt.ItemDataRole.UserRole, f"work_col_{col}")
-            self.table.setItem(row, col, item)
-
-    def fill_material_row(self, row):
-        """Заполняет строку материала"""
-        for col in range(self.table.columnCount()):
-            item = QTableWidgetItem("")
-            if col >= 6:  # Колонки материалов
-                item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
-                item.setData(Qt.ItemDataRole.UserRole, f"material_col_{col}")
-
-            self.table.setItem(row, col, item)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap)
 
     def renumber_rows(self):
         """Обновляет нумерацию работ"""
-        for work in self.model.works:
-            item = self.table.item(work.row, 0)
-            if item:
-                item.setText(str(work.number))
+        for section in self.model.estimate:
+            for work in section.works:
+                item = QTableWidgetItem(str(work.number))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table.setItem(work.row, 0, item)
 
-    def add_work_row(self):
+    def add_section_row(self):
         row_pos = self.table.rowCount()
         self.table.insertRow(row_pos)
+        self.table.selectRow(row_pos)
 
-        self.fill_work_row(row_pos, len(self.model.works))
+        self.table.setSpan(row_pos, 0, 1, 12)
 
         self.table.selectRow(row_pos)
 
-    def add_material_row(self, work_idx, work_start_row):
-        materials_count = self.model.works[work_idx].height
+    def add_work_row(self, row):
+        section_index = self.model.find_section_by_row(row)
+        if self.model.estimate[section_index].row != row:
+            work_index = self.model.find_work_by_row(row, section_index)
+            prev_work = self.model.estimate[section_index].works[work_index]
 
-        insert_row = work_start_row + materials_count - 1
+            insert_row = prev_work.row + prev_work.height
+            self.table.insertRow(insert_row)
+            self.table.selectRow(insert_row)
+        else:
+            self.table.insertRow(row + 1)
+            self.table.selectRow(row + 1)
+
+    def add_material_row(self, row):
+        section_index = self.model.find_section_by_row(row)
+
+        work_index = self.model.find_work_by_row(row, section_index)
+
+        work = self.model.estimate[section_index].works[work_index]
+
+        insert_row = work.row + work.height - 1
         self.table.insertRow(insert_row)
 
-        self.fill_material_row(insert_row)
-
         self.table.selectRow(insert_row)
-
-    def find_selected_work(self):
-        """Точное определение выделенной работы с учетом объединенных ячеек"""
-        selected_ranges = self.table.selectedRanges()
-        if not selected_ranges:
-            return None, None
-
-        selected_row = selected_ranges[0].topRow()
-
-        for i, work in enumerate(self.model.works):
-            if work.row <= selected_row < work.row + work.height:
-                return i, work.row
-
-        return None, None
 
     def clear_all_data(self):
         """Полностью очищает таблицу"""
         self.table.setRowCount(0)
+        self.add_section_row()
+        self.table.selectRow(0)
 
-    def update_all_spans(self):
-        """Обновляем ВСЕ объединения ячеек"""
-        # Сначала сбрасываем все объединения
-        for row in range(self.table.rowCount()):
-            for col in range(6):  # Объединяем только первые 6 колонок
-                self.table.setSpan(row, col, 1, 1)
-
-            self.table.setSpan(row, 11, 1, 1)
-            self.table.setSpan(row, 12, 1, 1)
-
-        # Затем устанавливаем новые объединения
-        current_row = 0
-        for work in self.model.works:
-            span_height = work.height
-
-            if span_height > 0:  # Объединяем только если есть материалы
-                for col in range(6):
-                    self.table.setSpan(current_row, col, span_height, 1)
-
-                self.table.setSpan(current_row, 11, span_height, 1)
-                self.table.setSpan(current_row, 12, span_height, 1)
-            current_row += span_height
-
-    def update_spans_for_work(self, work_idx, work_start_row):
+    def update_spans_for_work(self, row):
         """Обновляет объединения ячеек для конкретной работы"""
-        work = self.model.works[work_idx]
+        section_index = self.model.find_section_by_row(row)
+
+        work_index = self.model.find_work_by_row(row, section_index)
+
+        work = self.model.estimate[section_index].works[work_index]
         span_height = work.height
 
         # Сбрасываем объединения для этой работы
-        for row in range(work_start_row, work_start_row + span_height):
+        for row in range(work.row, work.row + span_height):
             for col in range(6):
                 self.table.setSpan(row, col, 1, 1)
 
@@ -396,15 +423,28 @@ class TableViewManager:
         # Устанавливаем новые объединения, если есть материалы
         if span_height > 1:
             for col in range(6):
-                self.table.setSpan(work_start_row, col, span_height, 1)
-            self.table.setSpan(work_start_row, 11, span_height, 1)
-            self.table.setSpan(work_start_row, 12, span_height, 1)
+                self.table.setSpan(work.row, col, span_height, 1)
+            self.table.setSpan(work.row, 11, span_height, 1)
+            self.table.setSpan(work.row, 12, span_height, 1)
 
-    def delete_selected_work(self, work_idx, work_start_row):
+    def delete_selected_section(self, row):
+        """Удаляет выбранный раздел и все его работы и материалы"""
+        section_index = self.model.find_section_by_row(row)
+        section = self.model.estimate[section_index]
+
+        for _ in range(section.height + 1):
+            self.table.removeRow(section.row)
+
+    def delete_selected_work(self, row):
         """Удаляет выбранную работу и все её материалы"""
-        work_height = self.model.works[work_idx].height
+        section_index = self.model.find_section_by_row(row)
+        work_idx = self.model.find_work_by_row(row, section_index)
+
+        work = self.model.estimate[section_index].works[work_idx]
+        work_height = work.height
+
         for _ in range(work_height):
-            self.table.removeRow(work_start_row)
+            self.table.removeRow(work.row)
 
     def delete_selected_material(self, work_start_row, selected_row, is_first_material):
         if is_first_material:
@@ -418,6 +458,7 @@ class TableViewManager:
                     new_item = QTableWidgetItem(item.text())
                     new_item.setFlags(item.flags())
                     new_item.setData(Qt.ItemDataRole.UserRole, item.data(Qt.ItemDataRole.UserRole))
+                    new_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(work_start_row, col, new_item)
 
             # Удаляем строку следующего материала
@@ -428,11 +469,14 @@ class TableViewManager:
 
     def update_table_from_model(self, row, col):
         try:
-            work_index, _ = self.model.find_work_by_row(row)
 
-            work = self.model.works[work_index]
+            section_index = self.model.find_section_by_row(row)
 
-            total_sum = self.model.total_sum_work_and_materials(work_index)
+            work_index = self.model.find_work_by_row(row, section_index)
+
+            work = self.model.estimate[section_index].works[work_index]
+
+            total_sum = self.model.total_sum_work_and_materials(section_index, work_index)
             item_col_12 = QTableWidgetItem(str(total_sum))
             current_col_12 = self.table.item(row, 12).text() if self.table.item(row, 12) else ""
 
@@ -440,10 +484,11 @@ class TableViewManager:
                 self.table.setItem(row, 12, item_col_12)
 
             if col == 3 or col == 4:
-                item_col_5 = QTableWidgetItem(str(work.total))
+                item_col_5 = QTableWidgetItem(str(work.total_work))
 
                 current_col_5 = self.table.item(row, 5).text() if self.table.item(row, 5) else ""
                 if item_col_5.text() != current_col_5:
+                    item_col_5.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(row, 5, item_col_5)
 
             elif col == 8 or col == 9:
@@ -452,12 +497,14 @@ class TableViewManager:
                 current_col_10 = self.table.item(row, 10).text() if self.table.item(row, 10) else ""
 
                 if item_col_10.text() != current_col_10:
+                    item_col_10.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(row, 10, item_col_10)
 
                 item_col_11 = QTableWidgetItem(str(work.total_materials))
                 current_col_11 = self.table.item(row, 11).text() if self.table.item(row, 11) else ""
 
                 if item_col_11.text() != current_col_11:
+                    item_col_11.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(work.row, 11, item_col_11)
 
             elif col == 11:
@@ -465,6 +512,7 @@ class TableViewManager:
                 current_col_11 = self.table.item(row, 11).text() if self.table.item(row, 11) else ""
 
                 if item_col_11.text() != current_col_11:
+                    item_col_11.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(work.row, 11, item_col_11)
 
         except Exception as e:
@@ -473,7 +521,7 @@ class TableViewManager:
     def adjust_column_widths(self):
         screen_width = self.table.parent().window().screen().availableGeometry().width()
 
-        table_width = screen_width - 30
+        table_width = screen_width - 50
 
         # Устанавливаем фиксированную ширину таблицы
         self.table.setFixedWidth(table_width)
@@ -482,12 +530,12 @@ class TableViewManager:
             0: 0.035,  # п/п
             1: 0.14,  # Наименование работ
             2: 0.04,  # Ед. изм
-            3: 0.05,  # К-во
+            3: 0.07,  # К-во
             4: 0.075,  # ФОТ на ед
             5: 0.075,  # ФОТ всего
             6: 0.14,  # Материалы
             7: 0.04,  # Ед. изм
-            8: 0.05,  # К-во
+            8: 0.07,  # К-во
             9: 0.075,  # Цена
             10: 0.075,  # Сумма
             11: 0.075,  # Сумма по материалам
@@ -516,7 +564,7 @@ class TableResultsViewManager:
 
     def configure_table_appearance(self):
         """Настраивает внешний вид таблицы"""
-        self.table.setStyleSheet(DATA_TABLE_STYLE)
+        self.table.setStyleSheet(RESULT_TABLE_STYLE)
         self.table.setShowGrid(False)
         self.table.setEditTriggers(
             QTableWidget.EditTrigger.DoubleClicked |
@@ -530,26 +578,32 @@ class TableResultsViewManager:
         self.table.setColumnCount(2)
         self.table.setRowCount(4)
 
-        self.table.horizontalHeader().setVisible(False)
-        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
 
-        self.table.setItem(0, 0, QTableWidgetItem("Доставка материала, работа грузчиков, подьем материала, "
-                                                  "тарирование мусора, вынос/вывоз мусора (15% от стоимости "
-                                                  "материалов)"))
-        self.table.setItem(1, 0, QTableWidgetItem("Итого без НДС"))
-        self.table.setItem(2, 0, QTableWidgetItem("В т.ч. ФОТ"))
-        self.table.setItem(3, 0, QTableWidgetItem("В т.ч. Материалы"))
+        headers = [
+            "Доставка материала, работа грузчиков, подъем материала, "
+            "тарирование мусора, вынос/вывоз мусора (15% от стоимости материалов)",
+            "ФОТ",
+            "Материалы",
+            "Итого без НДС"
+        ]
+
+        for row, text in enumerate(headers):
+            item = QTableWidgetItem(text)
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+            self.table.setItem(row, 0, item)
 
     def adjust_column_widths(self):
         screen_width = self.table.window().screen().availableGeometry().width()
 
-        table_width = screen_width - 30
+        table_width = screen_width - 50
 
         # Устанавливаем фиксированную ширину таблицы
         self.table.setFixedWidth(table_width)
 
         percents_section = {
-            0: 0.865,  # п/п
+            0: 0.908,  # п/п
             1: 0.075,  # Наименование работ
         }
 
@@ -558,89 +612,215 @@ class TableResultsViewManager:
             self.table.setColumnWidth(col, width)
 
     def update_result_table(self):
-        works_sum = sum([work.total for work in self.model.works])
-        materials_sum = sum([work.total_materials for work in self.model.works])
+        works_sum = 0
+        materials_sum = 0
+
+        for section in self.model.estimate:
+            for work in section.works:
+                works_sum += work.total_work
+                materials_sum += work.total_materials
+
         total_sum = works_sum + materials_sum
 
         self.table.setItem(0, 1, QTableWidgetItem(str(round(materials_sum * 0.15, 2))))
 
-        self.table.setItem(1, 1, QTableWidgetItem(str(total_sum)))
+        self.table.setItem(1, 1, QTableWidgetItem(str(round(works_sum, 2))))
 
-        self.table.setItem(2, 1, QTableWidgetItem(str(works_sum)))
+        self.table.setItem(2, 1, QTableWidgetItem(str(round(materials_sum, 2))))
 
-        self.table.setItem(3, 1, QTableWidgetItem(str(materials_sum)))
+        self.table.setItem(3, 1, QTableWidgetItem(str(round(total_sum + materials_sum * 0.15, 2))))
 
     def clear_all_data(self):
         self.table.setItem(0, 1, QTableWidgetItem(""))
-
         self.table.setItem(1, 1, QTableWidgetItem(""))
-
         self.table.setItem(2, 1, QTableWidgetItem(""))
-
         self.table.setItem(3, 1, QTableWidgetItem(""))
 
 
 class EstimateDataModel:
     def __init__(self, table):
-        self.works = []
+        self.estimate = [SectionItem()]
         self.table = table
 
-    def add_work(self):
-        work = WorkItem()
-        self.works.append(work)
-        self.works[-1].row = self.table.rowCount()
-        self.works[-1].number = len(self.works)
+    def add_section(self):
+        self.estimate.append(SectionItem())
+        self.estimate[-1].row = self.table.rowCount()
 
-    def add_material(self, work_index):
-        material = MaterialItem()
-        self.works[work_index].materials.append(material)
+    def find_section_by_row(self, row):
+        """Находит раздел по номеру строки в таблице"""
+        try:
+            for i in range(len(self.estimate)):
+                if self.estimate[i].row <= row <= self.estimate[i].row + self.estimate[i].height:
+                    return i
 
-        self.works[work_index].height += 1
+            return None
+        except Exception as e:
+            print(f"find_section_by_row Не удалось найти индекс раздела : {e}")
 
-        for i in range(work_index + 1, len(self.works)):
-            self.works[i].row += 1
+    def find_work_by_row(self, row, section_index):
+        """Возвращает индекс работы в массиве по заданной строке"""
+        try:
+            for i in range(len(self.estimate[section_index].works)):
+                work = self.estimate[section_index].works[i]
+                if work.row <= row < work.row + work.height:
+                    return i
 
-    def delete_work(self, work_index):
-        work_height = self.works[work_index].height
+            return None
+        except Exception as e:
+            print(f"find_work_by_row Не удалось найти индекс работы: {e}")
 
-        for i in range(work_index + 1, len(self.works)):
-            self.works[i].row -= work_height
-            self.works[i].number -= 1
+    def add_work(self, row):
+        try:
+            section_index = self.find_section_by_row(row - 1)
 
-        del self.works[work_index]
+            insert_row = row
+            num = 1
 
-    def delete_material(self, work_index, material_index):
-        for i in range(work_index + 1, len(self.works)):
-            self.works[i].row -= 1
+            if self.estimate[section_index].row != row - 1:
 
-        del self.works[work_index].materials[material_index]
+                work_index = self.find_work_by_row(row - 1, section_index)
+                prev_work = self.estimate[section_index].works[work_index]
 
-        self.works[work_index].height -= 1
+                insert_row = prev_work.row + prev_work.height
+                num = prev_work.number + 1
 
-        self.update_total_materials(work_index)
+            work = WorkItem()
+            work.row = insert_row
+            work.number = num
+
+            # Вставляем работу в указанную позицию
+            self.estimate[section_index].works.insert(work.number - 1, work)
+
+            self.estimate[section_index].height += 1
+
+            # Обновляем позиции последующих работ
+            for i in range(work.number, len(self.estimate[section_index].works)):
+
+                self.estimate[section_index].works[i].number += 1
+                self.estimate[section_index].works[i].row += 1
+
+                for k in range(len(self.estimate[section_index].works[i].materials)):
+                    self.estimate[section_index].works[i].materials[k].row += 1
+
+            for i in range(section_index + 1, len(self.estimate)):
+                self.estimate[i].row += 1
+
+                for j in range(len(self.estimate[i].works)):
+                    self.estimate[i].works[j].row += 1
+
+                    for k in range(len(self.estimate[i].works[j].materials)):
+                        self.estimate[i].works[j].materials[k].row += 1
+
+        except Exception as e:
+            print(f"add_work Не удалось добавить работу (в модель): {e}")
+
+    def add_material(self, row):
+        try:
+            section_index = self.find_section_by_row(row)
+
+            work_index = self.find_work_by_row(row, section_index)
+
+            self.estimate[section_index].works[work_index].materials.append(MaterialItem())
+
+            self.estimate[section_index].works[work_index].materials[-1].row = row + 1
+
+            self.estimate[section_index].works[work_index].height += 1
+            self.estimate[section_index].height += 1
+
+            for i in range(work_index + 1, len(self.estimate[section_index].works)):
+                self.estimate[section_index].works[i].row += 1
+
+            for i in range(section_index + 1, len(self.estimate)):
+                self.estimate[i].row += 1
+                for j in range(len(self.estimate[i].works)):
+                    self.estimate[i].works[j].row += 1
+                    for k in range(len(self.estimate[i].works[j].materials)):
+                        self.estimate[i].works[j].materials[k].row += 1
+
+        except Exception as e:
+            print(f"add_material Не удалось добавить материал (в модель): {e}")
+
+    def delete_section(self, row):
+        section_index = self.find_section_by_row(row)
+
+        section_height = self.estimate[section_index].height + 1
+
+        for i in range(section_index + 1, len(self.estimate)):
+            self.estimate[i].row -= section_height
+            for j in range(len(self.estimate[i].works)):
+                self.estimate[i].works[j].row -= section_height
+                for k in range(len(self.estimate[i].works[j].materials)):
+                    self.estimate[i].works[j].materials[k].row -= section_height
+
+        del self.estimate[section_index]
+
+    def delete_work(self, row):
+        section_index = self.find_section_by_row(row)
+
+        work_index = self.find_work_by_row(row, section_index)
+
+        work_height = self.estimate[section_index].works[work_index].height
+
+        self.estimate[section_index].height -= work_height
+
+        for i in range(work_index + 1, len(self.estimate[section_index].works)):
+            self.estimate[section_index].works[i].number -= 1
+            self.estimate[section_index].works[i].row -= work_height
+            for k in range(len(self.estimate[section_index].works[i].materials)):
+                self.estimate[section_index].works[i].materials[k].row -= work_height
+
+        for i in range(section_index + 1, len(self.estimate)):
+            self.estimate[i].row -= work_height
+            for j in range(len(self.estimate[i].works)):
+                self.estimate[i].works[j].row -= work_height
+                for k in range(len(self.estimate[i].works[j].materials)):
+                    self.estimate[i].works[j].materials[k].row -= work_height
+
+        del self.estimate[section_index].works[work_index]
+
+    def delete_material(self, row):
+        section_index = self.find_section_by_row(row)
+
+        work_index = self.find_work_by_row(row, section_index)
+
+        material_index = 0
+
+        for i in range(len(self.estimate[section_index].works[work_index].materials)):
+            if self.estimate[section_index].works[work_index].materials[i].row == row:
+                material_index = i
+
+        for i in range(material_index + 1, len(self.estimate[section_index].works[work_index].materials)):
+            self.estimate[section_index].works[work_index].materials[i].row -= 1
+
+        for i in range(work_index + 1, len(self.estimate[section_index].works)):
+            self.estimate[section_index].works[i].row -= 1
+
+        for i in range(section_index + 1, len(self.estimate)):
+            self.estimate[i].row -= 1
+            for j in range(len(self.estimate[i].works)):
+                self.estimate[i].works[j].row -= 1
+                for k in range(len(self.estimate[i].works[j].materials)):
+                    self.estimate[i].works[j].materials[k].row -= 1
+
+        del self.estimate[section_index].works[work_index].materials[material_index]
+
+        self.estimate[section_index].works[work_index].height -= 1
+        self.estimate[section_index].height -= 1
+
+        self.update_total_materials(section_index, work_index)
 
     def clear_all_data(self):
-        self.works.clear()
+        self.estimate.clear()
 
-    def add_work_at_position(self, work_index, row_position):
-        """Добавляет работу в указанную позицию"""
-        work = WorkItem()
-        work.row = row_position
-        work.number = work_index + 1  # Нумерация с 1
-
-        # Вставляем работу в указанную позицию
-        self.works.insert(work_index, work)
-
-        # Обновляем позиции последующих работ
-        for i in range(work_index + 1, len(self.works)):
-            self.works[i].row += 1
+        self.estimate.append(SectionItem())
 
     def update_model_from_table(self, row, col):
         """Обновляет модель на основе изменений в таблице"""
         try:
-            # Находим соответствующую работу и материал
-            work_idx, work_start_row = self.find_work_by_row(row)
-            if work_idx is None:
+            section_index = self.find_section_by_row(row)
+
+            if section_index is None:
+                print("section_index is None")
                 return
 
             item = self.table.item(row, col)
@@ -649,60 +829,65 @@ class EstimateDataModel:
 
             value = item.text()
 
+            if self.estimate[section_index].row == row:
+                self.estimate[section_index].name = value if value else ""
+                return
+
+            work_idx = self.find_work_by_row(row, section_index)
+
+            work_start_row = self.estimate[section_index].works[work_idx].row
+
+            if work_idx is None:
+                print("work_idx is None")
+                return
+
             if col <= 5 and row == work_start_row:
                 if col == 1:  # Наименование работы
-                    self.works[work_idx].name = value if value else ""
+                    self.estimate[section_index].works[work_idx].name = value if value else ""
                 elif col == 2:  # Ед. изм.
-                    self.works[work_idx].unit = value if value else ""
+                    self.estimate[section_index].works[work_idx].unit = value if value else ""
                 elif col == 3:  # Количество
-                    self.works[work_idx].quantity = round(float(value), 1) if value else 0.0
-                    self.update_work_total(work_idx)
+                    self.estimate[section_index].works[work_idx].quantity = round(float(value), 2) if value else 0.00
+                    self.update_work_total(section_index, work_idx)
                 elif col == 4:  # ФОТ на ед.
-                    self.works[work_idx].labor_cost = round(float(value), 1) if value else 0.0
-                    self.update_work_total(work_idx)
+                    self.estimate[section_index].works[work_idx].labor_cost = round(float(value), 2) if value else 0.00
+                    self.update_work_total(section_index, work_idx)
 
             else:
                 material_idx = row - work_start_row
 
                 if col == 6:  # Наименование материала
-                    self.works[work_idx].materials[material_idx].name = value if value else ""
+                    self.estimate[section_index].works[work_idx].materials[material_idx].name = value if value else ""
                 elif col == 7:  # Ед. изм. материала
-                    self.works[work_idx].materials[material_idx].unit = value if value else ""
+                    self.estimate[section_index].works[work_idx].materials[material_idx].unit = value if value else ""
                 elif col == 8:  # Количество материала
-                    self.works[work_idx].materials[material_idx].quantity = round(float(value), 1) if value else 0.0
+                    self.estimate[section_index].works[work_idx].materials[material_idx].quantity = round(float(value), 2) if value else 0.00
 
-                    self.update_material_total(work_idx, material_idx)
-                    self.update_total_materials(work_idx)
+                    self.update_material_total(section_index, work_idx, material_idx)
+                    self.update_total_materials(section_index, work_idx)
                 elif col == 9:  # Цена материала
-                    self.works[work_idx].materials[material_idx].price = round(float(value), 1) if value else 0.0
+                    self.estimate[section_index].works[work_idx].materials[material_idx].price = round(float(value), 2) if value else 0.00
 
-                    self.update_material_total(work_idx, material_idx)
-                    self.update_total_materials(work_idx)
+                    self.update_material_total(section_index, work_idx, material_idx)
+                    self.update_total_materials(section_index, work_idx)
         except Exception as e:
             print(f"Ошибка при обновлении модели из таблицы: {e}")
 
-    def find_work_by_row(self, row):
-        """Находит работу по номеру строки в таблице"""
+    def update_work_total(self, section_index, work_idx):
+        self.estimate[section_index].works[work_idx].total_work = round(self.estimate[section_index].works[work_idx].quantity * self.estimate[section_index].works[work_idx].labor_cost, 2)
 
-        for work in self.works:
-            if work.row <= row < work.row + work.height:
-                return work.number - 1, work.row
+    def update_material_total(self, section_index, work_idx, material_idx):
+        material = self.estimate[section_index].works[work_idx].materials[material_idx]
+        self.estimate[section_index].works[work_idx].materials[material_idx].total = round(material.quantity
+                                                                                           * material.price, 2)
 
-        return None, None
-
-    def update_work_total(self, work_idx):
-        self.works[work_idx].total = round(self.works[work_idx].quantity * self.works[work_idx].labor_cost, 1)
-
-    def update_material_total(self, work_idx, material_idx):
-        material = self.works[work_idx].materials[material_idx]
-        self.works[work_idx].materials[material_idx].total = round(material.quantity * material.price, 1)
-
-    def update_total_materials(self, work_idx):
+    def update_total_materials(self,section_index, work_idx):
         s = 0.0
-        for i in range(len(self.works[work_idx].materials)):
-            s += self.works[work_idx].materials[i].total
+        for i in range(len(self.estimate[section_index].works[work_idx].materials)):
+            s += self.estimate[section_index].works[work_idx].materials[i].total
 
-        self.works[work_idx].total_materials = round(s, 1)
+        self.estimate[section_index].works[work_idx].total_materials = round(s, 2)
 
-    def total_sum_work_and_materials(self, work_idx):
-        return round(self.works[work_idx].total_materials + self.works[work_idx].total, 1)
+    def total_sum_work_and_materials(self, section_index, work_idx):
+        return round(self.estimate[section_index].works[work_idx].total_materials
+                     + self.estimate[section_index].works[work_idx].total_work, 2)

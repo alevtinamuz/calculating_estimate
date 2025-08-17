@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QMovie
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel, QHeaderView, QSizePolicy, QHBoxLayout, QComboBox, \
     QTableWidget, QPushButton, QToolButton, QMessageBox, QDialog, QDialogButtonBox, QLineEdit, QDoubleSpinBox, \
@@ -14,6 +14,84 @@ from design.styles import LABEL_STYLE, TOOL_PANEL_STYLE, DROPDOWN_STYLE, DATA_TA
     ACTION_BUTTONS_STYLE, SEARCH_STYLE
 
 BACKUP_VERSION = "1.0"
+
+class DataLoader(QThread):
+    data_loaded = pyqtSignal(dict)
+    
+    def __init__(self, supabase, current_table):
+        super().__init__()
+        self.supabase = supabase
+        self.current_table = current_table
+    
+    def run(self):
+        try:
+            result = {}
+            
+            if self.current_table in ['works_categories', 'materials_categories']:
+                data = getters.sort_by_id(self.supabase, self.current_table, 'id')
+                result = {
+                    'data': data,
+                    'column_order': ['id', 'name'],
+                    'header_names': {
+                        'id': '№',
+                        'name': 'Название категории'
+                    }
+                }
+                
+            elif self.current_table in ['sections']:
+                data_sections = getters.sort_by_id(self.supabase, self.current_table, 'id')
+                data_relations = getters.sort_by_id(self.supabase, 'section_work_category_relations', 'section_id')
+                work_categories = getters.get_all_table(self.supabase, 'works_categories')
+                
+                display_data = []
+                for section in data_sections:
+                    related_category_ids = [
+                        related['category_id'] for related in data_relations 
+                        if related['section_id'] == section['id']
+                    ]
+                    
+                    category_names = [
+                        category['name'] for category in work_categories 
+                        if category['id'] in related_category_ids
+                    ]
+
+                    display_data.append({
+                        'id': section['id'],
+                        'name': section['name'],
+                        'related_categories': ', '.join(category_names) if category_names else '-',
+                        'related_ids': ','.join(related_category_ids)
+                    })
+                
+                result = {
+                    'data': display_data,
+                    'column_order': ['id', 'name', 'related_categories', 'related_ids'],
+                    'header_names': {
+                        'id': '№',
+                        'name': 'Название раздела',
+                        'related_categories': 'Связанные категории',
+                        'related_ids': 'related_ids'
+                    }
+                }
+                
+            else:
+                data = getters.sort_by_id(self.supabase, self.current_table, 'category_id')
+                result = {
+                    'data': data,
+                    'column_order': ['id', 'category_id', 'name', 'price', 'unit', 'keywords'],
+                    'header_names': {
+                        'id': '№',
+                        'category_id': 'Категория',
+                        'name': 'Название',
+                        'price': 'Цена',
+                        'unit': 'Ед. изм.',
+                        'keywords': "keywords"
+                    }
+                }
+            
+            self.data_loaded.emit(result)
+            
+        except Exception as e:
+            print('Error in thread:', e)
 
 class PageDB(QMainWindow):
     def __init__(self, supabase):
@@ -52,34 +130,31 @@ class PageDB(QMainWindow):
         self.load_data_from_supabase()
 
     def load_data_from_supabase(self):
-        """Загружает данные из Supabase и отображает их в таблице"""
+        """Загружает данные с анимацией загрузки"""
         try:
+            # Настройка анимации
             gif_path = os.path.join(os.path.dirname(__file__), "spinner.gif")
-            loading_movie = QMovie(gif_path)
-            self.label.setMovie(loading_movie)
-            loading_movie.start()
+            self.loading_movie = QMovie(gif_path)
+            self.label.setMovie(self.loading_movie)
+            self.loading_movie.start()
             self.label.setVisible(True)
-
             self.table_db.setVisible(False)
-            QApplication.processEvents()
 
-            if self.current_table in ['works_categories', 'materials_categories']:
-                data = getters.sort_by_id(self.supabase, self.current_table, 'id') 
-                column_order = ['id', 'name']
-                header_names = {
-                    'id': '№',
-                    'name': 'Название категории'
-                }
-            else:
-                data = getters.sort_by_id(self.supabase, self.current_table, 'category_id') 
-                column_order = ['id', 'category_id', 'name', 'price', 'unit']
-                header_names = {
-                    'id': '№',
-                    'category_id': 'Категория',
-                    'name': 'Название',
-                    'price': 'Цена',
-                    'unit': 'Ед. изм.'
-                }
+            # Создаем и запускаем поток
+            self.loader_thread = DataLoader(self.supabase, self.current_table)
+            self.loader_thread.data_loaded.connect(self.setup_table_data)
+            self.loader_thread.start()
+
+        except Exception as e:
+            self.label.setText(f"Ошибка: {str(e)}")
+
+
+    def setup_table_data(self, result):
+        """Обработка загруженных данных"""
+        try:
+            data = result['data']
+            column_order = result['column_order']
+            header_names = result['header_names']
 
             if not data:
                 self.label.setText("Нет данных для отображения")
@@ -109,12 +184,15 @@ class PageDB(QMainWindow):
                 for col_idx, column_name in enumerate(column_order):
                     value = row_data[column_name]
                     
-                    # Заменяем category_id на название категории, но сохраняем оригинальный ID
                     if column_name == 'category_id' and self.current_table in ['works', 'materials']:
                         original_id = value
                         value = category_names.get(str(value), str(value))
                         item = QTableWidgetItem(str(value))
-                        item.setData(Qt.ItemDataRole.UserRole, original_id)  # Сохраняем оригинальный ID
+                        item.setData(Qt.ItemDataRole.UserRole, original_id)
+                        
+                    elif column_name == 'id':
+                        item = QTableWidgetItem(str(row_idx + 1))
+                        item.setData(Qt.ItemDataRole.UserRole + 1, value)
                     else:
                         item = QTableWidgetItem(str(value))
 
@@ -128,9 +206,7 @@ class PageDB(QMainWindow):
             self.table_db.verticalHeader().setVisible(False)
             self.table_db.setShowGrid(False)
             self.table_db.setFrameShape(QTableWidget.Shape.NoFrame)
-
             self.table_db.setStyleSheet(DATA_TABLE_STYLE)
-
             self.table_db.viewport().update()
             self.table_db.updateGeometry()
 
@@ -138,11 +214,15 @@ class PageDB(QMainWindow):
             self.adjust_column_widths()
 
             # Показываем таблицу
+            if self.current_table in ['works', 'materials']:
+                self.table_db.setColumnHidden(5, True)
+            if self.current_table in ['sections']:
+                self.table_db.setColumnHidden(3, True)
+                
+            self.loading_movie.stop()
             self.label.setVisible(False)
             self.table_db.setVisible(True)
-            # self.label.setText("Данные успешно загружены")
 
-            # Еще раз обновляем геометрию после отображения
             QTimer.singleShot(200, lambda: [
                 self.adjust_column_widths(),
                 self.table_db.viewport().update()
@@ -150,8 +230,10 @@ class PageDB(QMainWindow):
 
         except Exception as e:
             self.label.setText(f"Ошибка загрузки: {str(e)}")
+            if hasattr(self, 'loading_movie'):
+                self.loading_movie.stop()
             print('Error:', e)
-
+        
     def hide_all_tool_buttons(self):
         """Скрывает все кнопки"""
         for buttons in self.action_buttons.values():
@@ -167,9 +249,17 @@ class PageDB(QMainWindow):
             current_price = 99.99
             current_unit = "м2"
             current_category = "Выберите категорию"
+            current_keywords = [QLineEdit()]
+            keywords_inputs = []
         elif self.current_table in ['works_categories', 'materials_categories']:
             title = "Добавление категории"
             current_name = "Введите название категории"
+        elif self.current_table in ['sections']:
+            title = "Добавление раздела"
+            current_name = "Введите название раздела"
+            current_relations = [QComboBox()]
+            relations_inputs = []
+            categories_data = getters.get_all_table(self.supabase, 'works_categories')
 
         # Создаем диалоговое окно
         dialog = QDialog(self)
@@ -212,6 +302,30 @@ class PageDB(QMainWindow):
                 category_combo_material.setCurrentText(current_category)
                 form_layout.addRow("Категория материала:", category_combo_material)
 
+            keyword_layout = QVBoxLayout()
+            
+            for keyword in current_keywords:
+                self.add_keyword_row(keywords_inputs, keyword_layout, keyword)
+            
+            form_layout.addRow("Ключевые слова:", keyword_layout)
+            
+            add_keyword_btn = QPushButton("Добавить ключевое слово")
+            add_keyword_btn.clicked.connect(lambda: self.add_keyword_row(keywords_inputs, keyword_layout))
+            
+            form_layout.addRow("", add_keyword_btn)
+            
+        if self.current_table in ['sections']:
+            relation_layout = QVBoxLayout()
+            for relation in current_relations:
+                self.add_relation_row(relations_inputs, relation_layout, categories_data)
+            
+            form_layout.addRow("Связанные категории:", relation_layout)
+
+            add_relation_btn = QPushButton("Добавить связь")
+            add_relation_btn.clicked.connect(lambda: self.add_relation_row(relations_inputs, relation_layout, categories_data))
+
+            form_layout.addRow("", add_relation_btn)
+
         main_layout.addLayout(form_layout)
 
         # Кнопки (Save/Cancel)
@@ -239,30 +353,83 @@ class PageDB(QMainWindow):
                 if self.current_table in ['works', 'materials']:
                     new_price = price_input.value()
                     new_unit = unit_input.text()
+                    new_keywords = "!".join(inp.text() for inp in keywords_inputs)
 
                 # Обновляем данные в Supabase
                 if self.current_table == 'works':
                     new_category_work = category_combo_work.currentData()
-                    setters.add_work(self.supabase, new_category_work, new_name, new_price, new_unit)
+                    setters.add_work(self.supabase, new_category_work, new_name, new_price, new_unit, new_keywords)
                 elif self.current_table == 'materials':
                     new_category_material = category_combo_material.currentData()
-                    setters.add_material(self.supabase, new_category_material, new_name, new_price, new_unit)
+                    setters.add_material(self.supabase, new_category_material, new_name, new_price, new_unit, new_keywords)
                 elif self.current_table == 'works_categories':
                     setters.add_work_category(self.supabase, new_name)
                 elif self.current_table == 'materials_categories':
                     setters.add_material_category(self.supabase, new_name)
-
+                elif self.current_table == 'sections':
+                    category_ids = [box.currentData() for box in relations_inputs if box.currentData()]
+                    self.add_section_with_relations(new_name, category_ids)
+                    
                 # Обновляем таблицу
                 self.load_data_from_supabase()
-                QMessageBox.information(self, "Успех", "Данные успешно обновлены!")
+                QMessageBox.information(self, "Успешно", "Данные успешно обновлены!")
 
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось обновить запись: {str(e)}")
 
+    def add_section_with_relations(self, new_name, category_ids):
+        try:
+            section_response = setters.add_section(self.supabase, new_name)
+
+            new_section = section_response.data[0]
+            section_id = new_section['id']
+            
+            unique_relations = {
+                (section_id, category_id) for category_id in category_ids
+                if category_id
+            }
+            
+            relations_data = [{
+                'section_id': section_id,
+                'category_id': category_id
+            } for section_id, category_id in unique_relations]
+            
+            if relations_data:
+                setters.add_relations(self.supabase, relations_data)
+                
+        except Exception as e:
+            # Откат транзакции (если используете транзакции через RPC)
+            print(f"Ошибка при создании раздела: {str(e)}")
+            raise e
+
+    def update_section_with_relations(self, section_id, new_name, current_relations, new_category_ids):
+        try:
+            setters.update_name_section(self.supabase, section_id, new_name)
+            current_set = set(current_relations)
+            new_set = set(new_category_ids)
+            
+            to_add = new_set - current_set
+            to_remove = current_set - new_set
+            
+            for category_id in to_remove:
+                setters.delete_relation(self.supabase, section_id, category_id)
+                
+            relation_data = [{
+                'section_id': section_id,
+                'category_id': category_id
+            } for category_id in to_add]
+            
+            if relation_data:
+                setters.add_relations(self.supabase, relation_data)
+        except Exception as e:
+            print(f"Ошибка при обновлении раздела: {str(e)}")
+            raise e
+
     def edit_row(self, row):
         """Обработка редактирования строки с формой из нескольких полей"""
-        record_id = self.table_db.item(row, 0).text()
-
+        id_item = self.table_db.item(row, 0)
+        record_id = id_item.data(Qt.ItemDataRole.UserRole + 1)        
+        
         # Определяем заголовок и текущие значения
         if self.current_table in ['works', 'materials']:
             title = "Редактирование записи"
@@ -271,9 +438,23 @@ class PageDB(QMainWindow):
             current_unit = self.table_db.item(row, 4).text()
             # Получаем оригинальный ID категории из UserRole
             current_category = self.table_db.item(row, 1).data(Qt.ItemDataRole.UserRole)
+            entity = getters.get_entity_by_id(self.supabase, self.current_table, record_id)[0]
+
+            current_keywords = entity["keywords"].split("!")
+            keywords_inputs = []
+
         elif self.current_table in ['works_categories', 'materials_categories']:
             title = "Редактирование категории"
             current_name = self.table_db.item(row, 1).text()  # Название категории
+            
+        elif self.current_table in ['sections']:
+            title = "Редактирование раздела"
+            current_name = self.table_db.item(row, 1).text()  # Название раздела
+            entity = getters.get_section_realtions(self.supabase, record_id)
+            
+            current_relations = [item['category_id'] for item in entity]
+            relations_inputs = []
+            categories_data = getters.get_all_table(self.supabase, 'works_categories')
 
         # Создаем диалоговое окно
         dialog = QDialog(self)
@@ -285,7 +466,7 @@ class PageDB(QMainWindow):
 
         # Создаем форму с полями
         form_layout = QFormLayout()
-
+        
         # Поле "Название"
         name_input = QLineEdit()
         name_input.setText(current_name)
@@ -301,6 +482,7 @@ class PageDB(QMainWindow):
             unit_input = QLineEdit()
             unit_input.setText(current_unit)
             form_layout.addRow("Ед. изм.:", unit_input)
+            
             if self.current_table == 'works':
                 category_combo_work = QComboBox()
                 categories_work = getters.get_all_table(self.supabase, 'works_categories')
@@ -318,6 +500,30 @@ class PageDB(QMainWindow):
                 category_combo_material.setCurrentText(current_category_name_material[0]['name'])
                 form_layout.addRow("Категория работ:", category_combo_material)
 
+            keyword_layout = QVBoxLayout()
+
+            for keyword in current_keywords:
+                self.add_keyword_row(keywords_inputs, keyword_layout, keyword)
+                
+            form_layout.addRow("Ключевые слова:", keyword_layout)
+
+            add_keyword_btn = QPushButton("Добавить ключевое слово")
+            add_keyword_btn.clicked.connect(lambda: self.add_keyword_row(keywords_inputs, keyword_layout))
+
+            form_layout.addRow("", add_keyword_btn)
+        
+        if self.current_table in ['sections']:
+            relation_layout = QVBoxLayout()
+            for relation in current_relations:
+                self.add_relation_row(relations_inputs, relation_layout, categories_data, relation)
+            
+            form_layout.addRow("Связанные категории:", relation_layout)
+
+            add_relation_btn = QPushButton("Добавить связь")
+            add_relation_btn.clicked.connect(lambda: self.add_relation_row(relations_inputs, relation_layout, categories_data))
+
+            form_layout.addRow("", add_relation_btn)
+
         main_layout.addLayout(form_layout)
 
         # Кнопки (Save/Cancel)
@@ -345,6 +551,7 @@ class PageDB(QMainWindow):
                 if self.current_table in ['works', 'materials']:
                     new_price = price_input.value()
                     new_unit = unit_input.text()
+                    new_keywords = "!".join(inp.text() for inp in keywords_inputs)
 
                 # Обновляем данные в Supabase
                 if self.current_table == 'works':
@@ -353,27 +560,129 @@ class PageDB(QMainWindow):
                     setters.update_price_of_work(self.supabase, record_id, new_price)
                     setters.update_unit_of_works(self.supabase, record_id, new_unit)
                     setters.update_category_id_of_work(self.supabase, record_id, new_category_work)
+                    setters.update_keywords_of_work(self.supabase, record_id, new_keywords)
                 elif self.current_table == 'materials':
                     new_category_material = category_combo_material.currentData()
                     setters.update_name_of_materials(self.supabase, record_id, new_name)
                     setters.update_price_of_material(self.supabase, record_id, new_price)
                     setters.update_unit_of_materials(self.supabase, record_id, new_unit)
                     setters.update_category_id_of_material(self.supabase, record_id, new_category_material)
+                    setters.update_keywords_of_materials(self.supabase, record_id, new_keywords)
                 elif self.current_table == 'works_categories':
                     setters.update_name_work_category(self.supabase, record_id, new_name)
                 elif self.current_table == 'materials_categories':
                     setters.update_name_material_category(self.supabase, record_id, new_name)
+                elif self.current_table == 'sections':
+                    new_category_ids = [
+                        box.currentData()
+                        for box in relations_inputs
+                        if box.currentData() is not None
+                    ]
+                    self.update_section_with_relations(record_id, new_name, current_relations, new_category_ids)
 
                 # Обновляем таблицу
                 self.load_data_from_supabase()
-                QMessageBox.information(self, "Успех", "Данные успешно обновлены!")
+                QMessageBox.information(self, "Успешно", "Данные успешно обновлены!")
 
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось обновить запись: {str(e)}")
 
+    def add_relation_row(self, relations_inputs, relation_layout, categories_data, current_data=None):
+        row_layout = QHBoxLayout()
+        relation_input = QComboBox()
+        relation_input.setStyleSheet(DROPDOWN_STYLE)
+        
+        for category in categories_data:
+            relation_input.addItem(category['name'], userData=category['id'])
+            
+        if current_data:
+            index = relation_input.findData(current_data)
+            if index >= 0:
+                relation_input.setCurrentIndex(index)
+        
+        relations_inputs.append(relation_input)
+        row_layout.addWidget(relation_input)
+        
+        delete_btn = QPushButton("🗑️")
+        delete_btn.setFixedWidth(30)
+        delete_btn.clicked.connect(lambda: self.remove_relation_row(
+            relations_inputs=relations_inputs,
+            relation_input=relation_input,
+            row_layout=row_layout,
+            relation_layout=relation_layout
+        ))
+        row_layout.addWidget(delete_btn)
+        relation_layout.addLayout(row_layout)
+        
+    def remove_relation_row(self, relations_inputs, relation_input, row_layout, relation_layout):
+        try:
+            # Удаляем поле ввода из списка (если оно там есть)
+            if relation_input in relations_inputs:
+                relations_inputs.remove(relation_input)
+            
+            # Очищаем layout строки
+            self.clear_layout(row_layout)
+            
+            # Удаляем строку из контейнера
+            relation_layout.removeItem(row_layout)
+            
+            # Обновляем отображение
+            if relation_layout.parentWidget():
+                relation_layout.parentWidget().update()
+                
+        except Exception as e:
+            print(f"Ошибка при удалении строки: {e}")
+
+    def add_keyword_row(self, keywords_inputs, keyword_layout, keyword=""):
+        row_layout = QHBoxLayout()
+        keyword_input = QLineEdit(keyword)
+        keywords_inputs.append(keyword_input)
+        row_layout.addWidget(keyword_input)
+        
+        delete_btn = QPushButton("🗑️")
+        delete_btn.setFixedWidth(30)
+        delete_btn.clicked.connect(lambda: self.remove_keyword_row(
+            keywords_inputs=keywords_inputs,
+            keyword_input=keyword_input,
+            row_layout=row_layout,
+            keyword_layout=keyword_layout
+        ))
+        row_layout.addWidget(delete_btn)
+        
+        keyword_layout.addLayout(row_layout)
+        
+    def remove_keyword_row(self, keywords_inputs, keyword_input, row_layout, keyword_layout):
+        try:
+            # Удаляем поле ввода из списка (если оно там есть)
+            if keyword_input in keywords_inputs:
+                keywords_inputs.remove(keyword_input)
+            
+            # Очищаем layout строки
+            self.clear_layout(row_layout)
+            
+            # Удаляем строку из контейнера
+            keyword_layout.removeItem(row_layout)
+            
+            # Обновляем отображение
+            if keyword_layout.parentWidget():
+                keyword_layout.parentWidget().update()
+                
+        except Exception as e:
+            print(f"Ошибка при удалении строки: {e}")
+
+    def clear_layout(self, layout):
+        """Очищает layout и удаляет все его виджеты"""
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                self._clear_layout(item.layout())
+
     def delete_row(self, row):
         """Обработка удаления строки"""
-        record_id = self.table_db.item(row, 0).text()
+        id_item = self.table_db.item(row, 0)
+        record_id = id_item.data(Qt.ItemDataRole.UserRole + 1)
 
         if self.current_table in ['works', 'materials']:
             reply = QMessageBox.question(
@@ -387,6 +696,12 @@ class PageDB(QMainWindow):
                 f'Вы уверены, что хотите удалить категорию с ID {record_id}?',
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
+        elif self.current_table in ['sections']:
+            reply = QMessageBox.question(
+                self, 'Удаление раздела',
+                f'Вы уверены, что хотите удалить раздел с ID {record_id}?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
 
         if reply == QMessageBox.StandardButton.Yes:
             try:
@@ -398,11 +713,16 @@ class PageDB(QMainWindow):
                     setters.delete_work_category(self.supabase, record_id)
                 elif self.current_table == 'materials_categories':
                     setters.delete_material_category(self.supabase, record_id)
+                elif self.current_table == 'sections':
+                    setters.delete_section(self.supabase, record_id)
                 if self.current_table in ['works', 'materials']:
                     self.label.setText(f"Запись с ID {record_id} удалена")
                 elif self.current_table in ['works_categories', 'materials_categories']:
                     self.label.setText(f"Категория с ID {record_id} удалена")
+                elif self.current_table in ['sections']:
+                    self.label.setText(f"Раздел с ID {record_id} удален")
                 self.load_data_from_supabase()
+                QMessageBox.information(self, "Успешно", "Данные успешно обновлены!")
             except Exception as e:
                 self.label.setText(f"Ошибка удаления: {str(e)}")
                 print('Error:', e)
@@ -413,14 +733,14 @@ class PageDB(QMainWindow):
             # Создаем диалог выбора групп таблиц
             dialog = QDialog(self)
             dialog.setWindowTitle("Выбор данных для выгрузки")
-            dialog.setFixedSize(300, 200)
+            dialog.setFixedSize(400, 200)
             
             layout = QVBoxLayout()
             layout.addWidget(QLabel("Выберите данные для выгрузки:"))
             
             # Группы таблиц (только полные связанные группы)
             table_groups = {
-                'works': QCheckBox("Работы с категориями работ"),
+                'works': QCheckBox("Работы с категориями работ и зависимости с разделами"),
                 'materials': QCheckBox("Материалы с категориями материалов")
             }
             
@@ -478,6 +798,11 @@ class PageDB(QMainWindow):
                         data['works'] = getters.get_all_table(self.supabase, 'works')
                         progress.setValue(progress.value() + 1)
                         
+                        progress.setLabelText("Выгрузка разделов с зависимостями...")
+                        data['sections'] = getters.get_all_table(self.supabase, 'sections')
+                        data['section_work_category_relations'] = getters.get_all_table(self.supabase, 'section_work_category_relations')
+                        progress.setValue(progress.value() + 1)
+                        
                     elif group == 'materials':
                         # Выгружаем категории материалов
                         progress.setLabelText("Выгрузка категорий материалов...")
@@ -506,7 +831,7 @@ class PageDB(QMainWindow):
                         json.dump(data, file, ensure_ascii=False, indent=2)
                     
                     progress.setValue(len(selected_groups)*2)
-                    QMessageBox.information(self, "Успех", f"Резервная копия сохранена в:\n{file_path}")
+                    QMessageBox.information(self, "Успешно", f"Резервная копия сохранена в:\n{file_path}")
                     
             except Exception as e:
                 progress.cancel()
@@ -539,10 +864,10 @@ class PageDB(QMainWindow):
                 
             # Доступные группы для восстановления (только полные связанные группы)
             available_groups = []
-            if 'works' in data['metadata']['tables'] and 'works_categories' in data and 'works' in data:
-                available_groups.append(('works', "Работы с категориями"))
+            if 'works' in data['metadata']['tables'] and 'works_categories' in data and 'works' in data and 'sections' in data and 'section_work_category_relations' in data:
+                available_groups.append(('works', "Работы с категориями работ и зависимости с разделами"))
             if 'materials' in data['metadata']['tables'] and 'materials_categories' in data and 'materials' in data:
-                available_groups.append(('materials', "Материалы с категориями"))
+                available_groups.append(('materials', "Материалы с категориями материалов"))
                 
             if not available_groups:
                 QMessageBox.critical(self, "Ошибка", "В файле нет полных групп данных для восстановления!")
@@ -551,7 +876,7 @@ class PageDB(QMainWindow):
             # Диалог выбора групп
             dialog = QDialog(self)
             dialog.setWindowTitle("Выбор данных для восстановления")
-            dialog.setFixedSize(300, 200)
+            dialog.setFixedSize(400, 200)
             
             layout = QVBoxLayout()
             layout.addWidget(QLabel("Выберите группы данных для восстановления:"))
@@ -602,19 +927,39 @@ class PageDB(QMainWindow):
                 for group in selected_groups:
                     if group == 'works':
                         # Восстанавливаем категории работ с оригинальными ID
-                        progress.setLabelText("Восстановление категорий работ...")
+                        progress.setLabelText("Очистка связей разделов...")
+                        setters.clear_relations_table(self.supabase, 'section_work_category_relations')
+                        progress.setValue(progress.value() + 1)
+
+                        # Затем очищаем работы
+                        progress.setLabelText("Очистка работ...")
+                        setters.clear_table(self.supabase, 'works')
+                        progress.setValue(progress.value() + 1)
+
+                        # Теперь можно очистить категории работ
+                        progress.setLabelText("Очистка категорий работ...")
                         setters.clear_table(self.supabase, 'works_categories')
-                        
+                        progress.setValue(progress.value() + 1)
+
+                        # Восстанавливаем категории работ с оригинальными ID
+                        progress.setLabelText("Восстановление категорий работ...")
                         categories_data = [{'id': c['id'], 'name': c['name']} for c in data['works_categories']]
-                        
                         setters.batch_insert_work_categories_with_ids(self.supabase, categories_data)
-                            
                         progress.setValue(progress.value() + 1)
 
                         # Восстанавливаем работы
                         progress.setLabelText("Восстановление работ...")
-                        setters.clear_table(self.supabase, 'works')
                         setters.batch_insert_works_fast(self.supabase, data['works'])
+                        progress.setValue(progress.value() + 1)
+
+                        # Восстанавливаем разделы и связи
+                        progress.setLabelText("Восстановление разделов...")
+                        setters.clear_table(self.supabase, 'sections')
+                        setters.batch_insert_sections_fast(self.supabase, data['sections'])
+                        progress.setValue(progress.value() + 1)
+
+                        progress.setLabelText("Восстановление связей...")
+                        setters.batch_insert_relations_sections_fast(self.supabase, data['section_work_category_relations'])
                         progress.setValue(progress.value() + 1)
                         
                     elif group == 'materials':
@@ -638,7 +983,7 @@ class PageDB(QMainWindow):
                         return
                 
                 progress.setValue(len(selected_groups)*2)
-                QMessageBox.information(self, "Успех", "Данные успешно восстановлены!")
+                QMessageBox.information(self, "Успешно", "Данные успешно восстановлены!")
                 self.load_data_from_supabase()
                 
             except Exception as e:
@@ -710,12 +1055,14 @@ class PageDB(QMainWindow):
         self.search_input.setClearButtonEnabled(True)
         self.search_input.setStyleSheet(SEARCH_STYLE)
         self.search_input.textChanged.connect(self.perform_search)
+        self.search_input.textChanged.connect(self.hide_all_tool_buttons)
         
         return self.search_input
 
     def perform_search(self):
         CATEGORY_COLUMN = 1
         NAME_COLUMN = 2
+        KEYWORDS_COLUMN = 5
         
         search_text = self.search_input.text().strip().lower()
         search_words = search_text.split()
@@ -728,6 +1075,7 @@ class PageDB(QMainWindow):
         for row in range(self.table_db.rowCount()):
             category_text = ""
             name_text = ""
+            keywords_text = ""
             
             category_item = self.table_db.item(row, CATEGORY_COLUMN)
             if category_item:
@@ -736,9 +1084,13 @@ class PageDB(QMainWindow):
             name_item = self.table_db.item(row, NAME_COLUMN)
             if name_item:
                 name_text = name_item.text().lower()
+                
+            keywords_item = self.table_db.item(row, KEYWORDS_COLUMN)
+            if keywords_item:
+                keywords_text = keywords_item.text().lower()
             
             # Объединяем текст из обеих колонок для поиска
-            combined_text = f"{category_text} {name_text}"
+            combined_text = f"{category_text} {name_text} {keywords_text}"
             
             # Проверяем, что все слова поиска присутствуют в объединенном тексте
             match_found = all(word in combined_text for word in search_words)
@@ -796,7 +1148,8 @@ class PageDB(QMainWindow):
             "works": "Работы",
             "works_categories": "Категории работ",
             "materials": "Материалы",
-            "materials_categories": "Категории материалов"
+            "materials_categories": "Категории материалов",
+            "sections": "Разделы"
         }
         # Создаем выпадающий список для выбора таблицы
         table_selector = QComboBox()
@@ -869,7 +1222,7 @@ class PageDB(QMainWindow):
         reserved_space = 80
         total_width = self.table_db.viewport().width() - reserved_space
 
-        percents_section = {
+        percents_main = {
             0: 0.1,
             1: 0.2,
             2: 0.5,
@@ -881,6 +1234,12 @@ class PageDB(QMainWindow):
             0: 0.1,
             1: 0.9
         }
+        
+        percents_section = {
+            0: 0.1,
+            1: 0.45,
+            2: 0.45
+        }
 
         if self.current_table in ['works_categories', 'materials_categories']:
             for col, percent in percents_category.items():
@@ -888,7 +1247,13 @@ class PageDB(QMainWindow):
                 self.table_db.setColumnWidth(col, int(total_width * percent))
 
         elif self.current_table in ['works', 'materials']:
+            for col, percent in percents_main.items():
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+                self.table_db.setColumnWidth(col, int(total_width * percent))
+                
+        elif self.current_table in ['sections']:
             for col, percent in percents_section.items():
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
                 self.table_db.setColumnWidth(col, int(total_width * percent))
+                
         header.setStretchLastSection(False)
