@@ -2,11 +2,15 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget)
 from design.page_db import PageDB
 from design.page_estimate import PageEstimate
 from design.styles import MAIN_WINDOW_STYLE, TAB_STYLE
+import os
+from PyQt6.QtGui import QIcon
 
 
 class MainWindow(QMainWindow):
     def __init__(self, supabase):
         super().__init__()
+        icon_path = os.path.join(os.path.dirname(__file__), 'logo.png')
+        self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle("Estimate Calculator")
         self.setStyleSheet(MAIN_WINDOW_STYLE)
 
