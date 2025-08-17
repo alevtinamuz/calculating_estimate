@@ -454,12 +454,17 @@ class TableViewManager:
             # Копируем данные из следующего материала в строку работы
             for col in range(6, self.table.columnCount()):
                 item = self.table.item(next_material_row, col)
+                # print(item)
                 if item:
                     new_item = QTableWidgetItem(item.text())
-                    new_item.setFlags(item.flags())
-                    new_item.setData(Qt.ItemDataRole.UserRole, item.data(Qt.ItemDataRole.UserRole))
-                    # new_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                    self.table.setItem(work_start_row, col, new_item)
+                else:
+                    new_item = QTableWidgetItem("")
+
+                # new_item.setFlags(item.flags())
+                # new_item.setData(Qt.ItemDataRole.UserRole, item.data(Qt.ItemDataRole.UserRole))
+                # new_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table.setItem(work_start_row, col, new_item)
+
 
             # Удаляем строку следующего материала
             self.table.removeRow(next_material_row)

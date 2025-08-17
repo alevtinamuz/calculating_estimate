@@ -1,4 +1,4 @@
-from PyQt6.QtCore import Qt, QPoint, QStringListModel, QLocale, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QPoint, QStringListModel, QLocale, QThread, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QSpinBox, QComboBox, QHBoxLayout, QWidget, QStyledItemDelegate, QVBoxLayout, QLineEdit, \
     QListWidget, QListWidgetItem, QDoubleSpinBox, QLabel
 from PyQt6.QtGui import QDoubleValidator, QValidator, QCursor, QMovie
@@ -206,6 +206,15 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 self.loader_worker = DataLoaderThread(self.load_initial_data, index.column())
                 self.loader_worker.data_loaded.connect(lambda: self.on_column_data_loaded(editor, current_value))
                 self.loader_worker.start()
+
+                def focus():
+                    try:
+                        self.search_line_edit.setFocus()
+
+                    except Exception as e:
+                        print(f"Focus error: {e}")
+
+                QTimer.singleShot(200, lambda: focus())
 
                 return editor
 
