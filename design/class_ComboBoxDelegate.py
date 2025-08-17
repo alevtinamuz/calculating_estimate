@@ -244,7 +244,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
             editor.sections_list.itemDoubleClicked.connect(lambda: self.commitAndClose(editor))
 
             # Обновляем геометрию после загрузки данных
-            self.updateEditorGeometry(editor, None, index)
+            # self.updateEditorGeometry(editor, None, index)
 
         except Exception as e:
             print(f"Error in on_data_loaded: {e}")
@@ -358,7 +358,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
             screen = viewport.screen().availableGeometry()
 
             # Рассчитываем размеры на основе содержимого
-            width = editor.sections_list.sizeHintForColumn(0) + 30  # + отступы
+            width = editor.sections_list.sizeHintForColumn(0)# + отступы
             item_height = editor.sections_list.sizeHintForRow(0)
             visible_items = min(10, editor.sections_list.count())
             height = item_height * visible_items + 10
@@ -459,7 +459,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
                 # Фильтруем работы - оставляем только те, которые принадлежат категориям раздела
                 self.data = [work for work in all_works
-                             if work.get('category_id') in section_category_ids]
+                            if work.get('category_id') in section_category_ids]
             else:
                 self.data = all_works
 
@@ -538,11 +538,12 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 self.sections_list.setCurrentRow(0)
 
             selected_item = self.sections_list.currentItem()
-            selected_text = selected_item.text()
+            if selected_item:
+                selected_text = selected_item.text()
             # selected_id = selected_item.data(Qt.ItemDataRole.UserRole)
 
-            model.setData(index, selected_text)
-            model.setData(index, Qt.AlignmentFlag.AlignCenter, Qt.ItemDataRole.TextAlignmentRole)
+                model.setData(index, selected_text)
+                model.setData(index, Qt.AlignmentFlag.AlignCenter, Qt.ItemDataRole.TextAlignmentRole)
 
             return
 
@@ -552,12 +553,13 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 self.sub_list.setCurrentRow(0)
 
             selected_item = self.sub_list.currentItem()
-            selected_text = selected_item.text()
-            selected_id = selected_item.data(Qt.ItemDataRole.UserRole)
+            if selected_item:
+                selected_text = selected_item.text()
+                selected_id = selected_item.data(Qt.ItemDataRole.UserRole)
 
-            model.setData(index, selected_text)
+                model.setData(index, selected_text)
 
-            model.setData(index, Qt.AlignmentFlag.AlignCenter, Qt.ItemDataRole.TextAlignmentRole)
+                model.setData(index, Qt.AlignmentFlag.AlignCenter, Qt.ItemDataRole.TextAlignmentRole)
 
             try:
                 # Определяем тип сущности (работа или материал)
