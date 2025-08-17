@@ -36,6 +36,7 @@ class DoubleSpinBox(QDoubleSpinBox):
 class DataLoaderThread(QThread):
     data_loaded = pyqtSignal(object)
 
+
     def __init__(self, load_func, *args):
         super().__init__()
         self.load_func = load_func
